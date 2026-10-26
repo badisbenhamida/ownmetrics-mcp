@@ -1,13 +1,17 @@
 """Access to Garmin's Personal API, built on Garmin's official Python client.
 
 Responsibilities: key and token handling (R4, AC6), throttling and 429 backoff (R3),
-splitting requests to Garmin's per-endpoint range limits (R2), and turning every failure
-into a safe, user-facing error (C5). It stores no Garmin data (C3).
+splitting requests to Garmin's per-endpoint range limits (R2), permission errors (R8),
+thread safety (R9), and turning every failure into a safe, user-facing error (C5).
+It stores no Garmin data (C3).
 """
 
 from __future__ import annotations
 
+import base64
+import json
 import logging
+import threading
 import time
 from collections.abc import Callable
 from datetime import date
@@ -27,6 +31,7 @@ from ownmetrics_mcp.errors import (
     AuthError,
     GarminUnavailableError,
     NoKeyError,
+    NotPermittedError,
     NotProvidedError,
     RateLimitedError,
 )
@@ -41,7 +46,6 @@ WINDOW_DAYS = {
     "hydration": 31,
     "body_battery": 31,
     "stress": 28,
-    "steps": 28,
     "hrv": 365,
     "weight": 365,
 }
@@ -56,7 +60,7 @@ class _Token(Protocol):
 
 
 class GarminSource:
-    """Read-only facade over Garmin's client. One instance per server process."""
+    """Read-only facade over Garmin's client. One instance per server process; thread-safe."""
 
     def __init__(
         self,
@@ -83,6 +87,8 @@ class GarminSource:
         self._client: Any = None
         self._token: _Token | None = None
         self._last_request = float("-inf")
+        self._auth_lock = threading.RLock()
+        self._throttle_lock = threading.Lock()
 
     # -- auth -------------------------------------------------------------------------------
 
@@ -90,9 +96,7 @@ class GarminSource:
         if self._key is None:
             try:
                 key = self._key_loader()
-            except GarminPersonalApiError:
-                raise NoKeyError() from None
-            except OSError:
+            except (GarminPersonalApiError, OSError):
                 raise NoKeyError() from None
             if not key:
                 raise NoKeyError()
@@ -101,75 +105,86 @@ class GarminSource:
         return self._key
 
     def _ensure_token(self, *, force: bool = False) -> None:
-        if self._token is not None and not force:
-            return
-        key = self._load_key()
-        if self._authenticator is None:
-            self._authenticator = self._authenticator_factory()
-        try:
-            token = self._authenticator.obtain_token(key, force_refresh=force)
-        except HttpError as exc:
-            if exc.status_code in (400, 401, 403):
-                raise AuthError() from None
-            raise GarminUnavailableError(f"token request returned HTTP {exc.status_code}") from None
-        except requests.RequestException:
-            raise GarminUnavailableError("network error while signing in") from None
-        except GarminPersonalApiError:
-            raise AuthError() from None
-        register_secret(token.access_token)
-        self._token = token
-        if self._client is None:
-            self._client = self._client_factory(token.access_token)
-        else:
-            self._client.update_bearer_token(token.access_token)
+        with self._auth_lock:
+            if self._token is not None and not force:
+                return
+            key = self._load_key()
+            if self._authenticator is None:
+                self._authenticator = self._authenticator_factory()
+            try:
+                token = self._authenticator.obtain_token(key, force_refresh=force)
+            except HttpError as exc:
+                if exc.status_code in (400, 401, 403):
+                    raise AuthError() from None
+                raise GarminUnavailableError(f"sign-in returned HTTP {exc.status_code}") from None
+            except requests.RequestException:
+                raise GarminUnavailableError("network error while signing in") from None
+            except GarminPersonalApiError:
+                # e.g. an unexpected token response: Garmin's problem, not the user's key
+                raise GarminUnavailableError("unexpected sign-in response") from None
+            register_secret(token.access_token)
+            self._token = token
+            if self._client is None:
+                self._client = self._client_factory(token.access_token)
+            else:
+                self._client.update_bearer_token(token.access_token)
 
-    def token_status(self) -> dict[str, Any]:
+    def token_status(self, *, fresh: bool = False) -> dict[str, Any]:
         """Scopes, hours left and issued lifetime of the bearer token. Never the token itself.
 
-        Garmin issues 24-hour tokens, capped at the key's expiry. A token whose issued
-        lifetime is well under 24 h therefore means the key itself ends soon (L6).
+        Garmin issues 24-hour tokens, capped at the key's expiry, and its client reuses a
+        cached token until it has under an hour left. With fresh=True a new token is issued
+        first, so a lifetime well under 24 h reliably means the key ends soon (L6).
         """
-        self._ensure_token()
-        assert self._token is not None
-        claims = _token_claims(self._token)
-        hours_left = (self._token.expires_at - self._wall_clock()) / 3600
+        self._ensure_token(force=fresh)
+        with self._auth_lock:
+            assert self._token is not None
+            token = self._token
+        claims = _token_claims(token)
         lifetime = None
         if isinstance(claims.get("iat"), int | float) and isinstance(
             claims.get("exp"), int | float
         ):
             lifetime = round((claims["exp"] - claims["iat"]) / 3600, 1)
-        scopes = claims.get("scope", [])
+        raw = claims.get("scope", [])
+        scopes = raw.split() if isinstance(raw, str) else [str(s) for s in raw or []]
         return {
-            "token_hours_left": round(hours_left, 1),
+            "token_hours_left": round((token.expires_at - self._wall_clock()) / 3600, 1),
             "token_issued_lifetime_hours": lifetime,
-            "scopes": [str(s) for s in scopes] if isinstance(scopes, list) else [str(scopes)],
+            "scopes": scopes,
         }
 
     # -- request core -----------------------------------------------------------------------
 
     def _throttle(self) -> None:
-        wait = self._min_interval_s - (self._monotonic() - self._last_request)
-        if wait > 0:
-            self._sleep(wait)
-        self._last_request = self._monotonic()
+        with self._throttle_lock:
+            wait = self._min_interval_s - (self._monotonic() - self._last_request)
+            if wait > 0:
+                self._sleep(wait)
+            self._last_request = self._monotonic()
 
     def call(self, what: str, fn: Callable[[Any], Json]) -> Json:
-        """Run one client call with refresh-on-401 (R4), backoff on 429 (R3), safe errors (C5)."""
+        """One client call: refresh once on 401 (R4), backoff on 429 (R3), 403 = permission
+        (R8), 404 = not provided (L2); every error safe to show (C5)."""
         self._ensure_token()
         refreshed = False
         attempt = 0
         while True:
             self._throttle()
             try:
-                return fn(self._client)
+                with self._auth_lock:
+                    client = self._client
+                return fn(client)
             except HttpError as exc:
                 code = exc.status_code
                 if code == 401 and not refreshed:
                     refreshed = True
                     self._ensure_token(force=True)
                     continue
-                if code in (401, 403):
+                if code == 401:
                     raise AuthError() from None
+                if code == 403:
+                    raise NotPermittedError(what) from None
                 if code == 404:
                     raise NotProvidedError(what) from None
                 if code == 429 and attempt < self._max_retries:
@@ -275,10 +290,11 @@ class GarminSource:
     def activities(
         self, first: date, last: date, activity_type: str | None, limit: int
     ) -> list[Json]:
-        out: list[Json] = []
+        """Paged within Garmin's page limit (R2), de-duplicated and newest first (R10)."""
+        seen: dict[Any, Json] = {}
         start = 0
-        while len(out) < limit:
-            size = min(ACTIVITY_PAGE_SIZE, limit - len(out))
+        while len(seen) < limit:
+            size = min(ACTIVITY_PAGE_SIZE, limit - len(seen))
             page = _as_list(
                 self.call(
                     "Activities",
@@ -292,11 +308,16 @@ class GarminSource:
                 ),
                 None,
             )
-            out.extend(page)
-            if len(page) < size:
+            before = len(seen)
+            for item in page:
+                aid = item.get("activityId") if isinstance(item, dict) else None
+                if aid is not None and aid not in seen:
+                    seen[aid] = item
+            if len(page) < size or len(seen) == before:  # last page, or Garmin ignored `start`
                 break
             start += size
-        return out[:limit]
+        rows = sorted(seen.values(), key=lambda a: str(a.get("startTimeLocal") or ""), reverse=True)
+        return rows[:limit]
 
     def activity(self, activity_id: int) -> Json:
         return self.call("Activity details", lambda c: c.get_activity(activity_id))
@@ -319,9 +340,6 @@ def _as_list(page: Json, unwrap: str | None) -> list[Json]:
 
 def _token_claims(token: _Token) -> dict[str, Any]:
     """Read the JWT payload without verifying or exposing the token."""
-    import base64
-    import json
-
     try:
         payload = token.access_token.split(".")[1]
         payload += "=" * (-len(payload) % 4)

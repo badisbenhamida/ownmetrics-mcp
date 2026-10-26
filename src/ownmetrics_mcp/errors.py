@@ -50,5 +50,13 @@ class NotProvidedError(OwnMetricsError):
         super().__init__(f"{what} is not provided by Garmin's Personal API.")
 
 
+class NotPermittedError(OwnMetricsError):
+    """HTTP 403 on a data call: the key lacks permission for this data area. R8."""
+
+    def __init__(self, what: str) -> None:
+        self.what = what
+        super().__init__(f"{what} is not allowed by your Personal API key's permissions.")
+
+
 class InvalidInputError(OwnMetricsError):
     pass

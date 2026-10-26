@@ -57,9 +57,9 @@ with or endorsed by Garmin.
 | T4 | `get_stress_and_body_battery` | Per day in a range: stress level and time per stress band; Body Battery high/low/charged/drained. | M2 | auto |
 | T5 | `get_heart_rate` | One day: resting, min, max, 7-day resting average; the user's HR zones. | M2 | auto |
 | T6 | `list_activities` | Activities in a range, optional type filter, up to 100: id, name, type, start, duration, distance, avg HR, calories, training effect. | M2 | auto |
-| T7 | `get_activity` | One activity: summary, pace/speed, power, cadence, training effect and load, splits, workout steps. | M2 | auto |
+| T7 | `get_activity` | One activity: summary, pace/speed, power, cadence, training effect and load, splits, structured workout names and step counts. An unknown id says "no activity with that id", not "not provided". | M2 | auto |
 | T8 | `get_body_metrics` | Range: weight entries (kg), BMI, body fat, hydration; SpO2 and fitness age as of the end date. | M2 | auto |
-| T9 | `get_account_status` | Connected or not, granted scopes, a final-day key warning (read from the token's issued lifetime, since Garmin does not expose the key's expiry), which data areas respond, and what Garmin does not provide. | M2 | auto |
+| T9 | `get_account_status` | Connected or not (false whenever Garmin rejects the key, at sign-in or on data calls), granted scopes, a final-day key warning (read from a freshly issued token's lifetime, since Garmin does not expose the key's expiry), whether each data area used by T1–T8 responds, and what Garmin does not provide. Also available as the `ownmetrics-mcp status` command, which exits non-zero when not connected. | M2 | auto |
 
 ### 4.2 Insight tools (Milestone 3)
 
@@ -75,13 +75,16 @@ with or endorsed by Garmin.
 
 | ID | Requirement | Milestone | Verify |
 | --- | --- | --- | --- |
-| R1 | Dates are ISO `YYYY-MM-DD`; ranges are inclusive, end ≥ start, at most 90 days per tool call. | M2 | auto |
+| R1 | Dates are exactly `YYYY-MM-DD`; ranges are inclusive, end ≥ start, at most 90 days per tool call. | M2 | auto |
 | R2 | Requests are split into windows within Garmin's per-endpoint range limits (section 3). | M2 | auto |
 | R3 | Requests are throttled; HTTP 429 gets backoff, then a clear "Garmin is limiting requests" error. | M2 | auto |
 | R4 | A 401 on a data call triggers one token refresh and retry before failing. | M2 | auto |
 | R5 | Every field name carries its unit (e.g. `resting_hr_bpm`, `distance_km`). | M2 | auto |
 | R6 | Every tool is annotated read-only and its description carries the not-medical-advice note. | M2 | auto |
-| R7 | `ownmetrics-mcp auth` stores the key in Garmin's standard key file with owner-only permissions, after verifying it with Garmin. | M2 | auto |
+| R7 | `ownmetrics-mcp auth` stores the key in Garmin's standard key file, after verifying it with Garmin; on macOS and Linux the file is owner-only from the first byte written. It warns when the `GARMIN_PERSONAL_API_KEY` environment variable would override the saved file. | M2 | auto |
+| R8 | A 403 on a data call means the key lacks permission for that data area: it is reported as "not allowed by your key's permissions" for that area, and the tool's other data is still returned. Only a sign-in rejection or a repeated 401 means the key is expired or deleted. | M2 | auto |
+| R9 | Tool calls may run concurrently; token handling and throttling are thread-safe. | M2 | auto |
+| R10 | Duplicate records for one day are resolved deterministically (the most complete record wins); activities are de-duplicated by id and listed newest first. | M2 | auto |
 
 ### 4.4 Acceptance criteria
 
@@ -106,7 +109,7 @@ with or endorsed by Garmin.
 | L3 | No gear, devices or workouts endpoints. | Out of scope. |
 | L4 | No Golf, Courses or Training APIs (business tiers only). | Out of scope. |
 | L5 | Rate limits are unpublished. | R3. |
-| L6 | Key expiry date not exposed. | T9 warns in the final 24 h; Garmin also emails a reminder. |
+| L6 | Key expiry date not exposed. | T9 warns once a freshly issued token is shorter than 23 h (the key ends within about a day); Garmin also emails a reminder about a week before expiry. |
 | L7 | Some endpoints fail with HTTP 500 beyond their range limits. | R2. |
 
 ## 6. Milestones and gates

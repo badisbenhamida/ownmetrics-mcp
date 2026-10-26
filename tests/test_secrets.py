@@ -45,7 +45,7 @@ def _all_failing_client():
 
 @req("AC5", "C5")
 @pytest.mark.parametrize("scenario", ["success", "server_errors", "rejected_key"])
-def test_canary_key_never_appears(scenario, caplog):
+def test_canary_key_never_appears(scenario, caplog, capfd):
     caplog.set_level(logging.DEBUG)
     client = _all_failing_client() if scenario == "server_errors" else FakeClient()
     auth = FakeAuthenticator(fail_with=401) if scenario == "rejected_key" else FakeAuthenticator()
@@ -54,7 +54,8 @@ def test_canary_key_never_appears(scenario, caplog):
     outputs = [call(server, name, args) for name, args in TOOL_CALLS]
     for _ in range(3):  # also exercise retries after each queued failure
         outputs += [call(server, name, args) for name, args in TOOL_CALLS]
-    blob = "\n".join(outputs) + "\n" + caplog.text
+    raw = capfd.readouterr()  # raw stdout (the MCP channel) and stderr, beyond logging
+    blob = "\n".join(outputs) + "\n" + caplog.text + raw.out + raw.err
     assert CANARY not in blob
     assert client.token == "" or client.token not in blob
 
@@ -83,4 +84,33 @@ def test_log_filter_redacts_messages_and_args():
     record = logging.LogRecord("x", logging.INFO, __file__, 1, "using %s", (CANARY,), None)
     RedactingFilter().filter(record)
     assert CANARY not in record.getMessage()
-    install_log_redaction()  # idempotent setup used by the CLI
+
+
+@req("AC5")
+def test_installed_log_redaction_scrubs_real_log_output(caplog):
+    register_secret(CANARY)
+    install_log_redaction()
+    caplog.set_level(logging.INFO, logger="garmin_personal_api")
+    logging.getLogger("garmin_personal_api").info("GET /x with key %s", CANARY)
+    assert caplog.records and CANARY not in caplog.text
+
+
+@req("AC5", "R7")
+def test_auth_unexpected_error_never_echoes_the_key():
+    import io
+
+    from ownmetrics_mcp.cli import run_auth
+
+    class Boom:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *e):
+            return None
+
+        def obtain_token(self, key, *, force_refresh=False):
+            raise RuntimeError(f"connection reset while sending {key}")
+
+    out = io.StringIO()
+    code = run_auth(read_key=lambda _p: CANARY, authenticator_factory=Boom, out=out)
+    assert code == 1 and CANARY not in out.getvalue()

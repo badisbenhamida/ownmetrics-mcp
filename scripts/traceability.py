@@ -129,6 +129,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--milestone", default="M2")
     ap.add_argument("--check", action="store_true")
+    ap.add_argument("--out", type=Path, default=OUT, help="where to write the matrix")
     args = ap.parse_args(argv)
 
     reqs = parse_spec()
@@ -138,7 +139,7 @@ def main(argv: list[str] | None = None) -> int:
         if rid in reqs:
             reqs[rid].tests = names
 
-    OUT.write_text(render(reqs, args.milestone), encoding="utf-8")
+    args.out.write_text(render(reqs, args.milestone), encoding="utf-8")
     scope = milestone_num(args.milestone)
     missing = [
         r.rid
@@ -147,7 +148,7 @@ def main(argv: list[str] | None = None) -> int:
     ]
     print(
         f"{len(reqs)} requirements, {sum(len(v) for v in tests.values())} test links; "
-        f"wrote {OUT.name}"
+        f"wrote {args.out.name}"
     )
     if unknown:
         print("Tests cite IDs not defined in SPEC.md:", ", ".join(unknown))

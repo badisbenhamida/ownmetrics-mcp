@@ -1,3 +1,4 @@
+import json
 from datetime import date
 
 import pytest
@@ -75,8 +76,10 @@ def test_requests_are_throttled():
 def test_429_backs_off_then_succeeds():
     client = FakeClient()
     client.fail["get_user_profile_settings"] = [429, 429]
-    src, _, _ = make_source(client)
+    sleeps: list[float] = []
+    src, _, _ = make_source(client, sleeps=sleeps)
     assert src.profile_settings() == {"measurementSystem": "metric"}
+    assert sleeps == [2.0, 4.0]  # exponential backoff actually happened
 
 
 @req("R3", "L5")
@@ -164,10 +167,9 @@ def test_network_errors_are_reported_plainly():
 
 @req("T9", "L6")
 def test_token_status_reports_issued_lifetime_and_scopes():
-    src, _, _ = make_source(auth=FakeAuthenticator(lifetime_h=6))
+    src, client, _ = make_source(auth=FakeAuthenticator(lifetime_h=6))
     status = src.token_status()
     assert status["token_issued_lifetime_hours"] == pytest.approx(6, abs=0.1)
     assert "PERSONAL_API_FITNESS_READ" in status["scopes"]
-    assert "token" not in {
-        k for k in status if k not in ("token_hours_left", "token_issued_lifetime_hours")
-    }
+    blob = json.dumps(status)
+    assert client.token and client.token not in blob  # the token's value never appears

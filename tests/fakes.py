@@ -380,6 +380,7 @@ def make_source(
     client: FakeClient | None = None,
     auth: FakeAuthenticator | None = None,
     key: str = "TEST-KEY-not-a-real-key-0001",
+    sleeps: list[float] | None = None,
 ) -> tuple[GarminSource, FakeClient, FakeAuthenticator]:
     client = client or FakeClient()
     auth = auth or FakeAuthenticator()
@@ -388,11 +389,12 @@ def make_source(
         client.token = token
         return client
 
+    record = sleeps.append if sleeps is not None else (lambda s: None)
     src = GarminSource(
         key_loader=lambda: key,
         authenticator_factory=lambda: auth,
         client_factory=client_factory,
         min_interval_s=0.0,
-        sleep=lambda s: None,
+        sleep=record,
     )
     return src, client, auth

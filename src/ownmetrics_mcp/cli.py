@@ -19,6 +19,7 @@ from ownmetrics_mcp.errors import KEY_PAGE
 from ownmetrics_mcp.redact import install_log_redaction, redact, register_secret
 
 KEY_PATH = Path(DEFAULT_API_KEY_FILE).expanduser()
+ENV_KEY = "GARMIN_PERSONAL_API_KEY"
 
 
 def _setup_logging() -> None:
@@ -30,15 +31,15 @@ def _setup_logging() -> None:
 
 
 def write_key_file(key: str, path: Path = KEY_PATH) -> None:
-    """Write the key with owner-only permissions (R7). Directory is owner-only too."""
+    """Write the key with owner-only permissions on POSIX (R7); directory owner-only too."""
     path.parent.mkdir(parents=True, exist_ok=True)
     if os.name == "posix":
         os.chmod(path.parent, 0o700)
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    if os.name == "posix":
+        os.fchmod(fd, 0o600)  # an existing file keeps its old mode on open; fix it before writing
     with os.fdopen(fd, "w", encoding="utf-8") as fh:
         fh.write(key.strip() + "\n")
-    if os.name == "posix":
-        os.chmod(path, 0o600)
 
 
 def run_auth(
@@ -71,7 +72,14 @@ def run_auth(
         )
         return 1
     write_key_file(key, key_path)
-    print(f"Key verified with Garmin and saved to {key_path} (readable only by you).", file=out)
+    where = "readable only by you" if os.name == "posix" else "in your user profile folder"
+    print(f"Key verified with Garmin and saved to {key_path} ({where}).", file=out)
+    if os.environ.get(ENV_KEY):
+        print(
+            f"Note: the {ENV_KEY} environment variable is set and takes precedence over the "
+            "saved file. Remove it if it holds an old key.",
+            file=out,
+        )
     print(
         "Next: add ownmetrics-mcp to your AI app (see the README), then restart the app.", file=out
     )

@@ -26,10 +26,11 @@ def run_all(src):
 
 
 def leaves(obj, path=""):
-    if isinstance(obj, dict):
+    """Every leaf value; an empty list or dict counts as a (blank) leaf itself."""
+    if isinstance(obj, dict) and obj:
         for k, v in obj.items():
             yield from leaves(v, f"{path}.{k}")
-    elif isinstance(obj, list):
+    elif isinstance(obj, list) and obj:
         for i, v in enumerate(obj):
             yield from leaves(v, f"{path}[{i}]")
     else:
@@ -48,7 +49,7 @@ def test_no_zero_or_blank_when_garmin_has_no_data():
             if name in IDENTIFIERS:
                 continue
             assert value != 0, f"{tool}{path} is a zero for missing data"
-            assert value not in ("", None), f"{tool}{path} is blank for missing data"
+            assert value not in ("", None, [], {}), f"{tool}{path} is blank for missing data"
 
 
 @req("AC3")
@@ -92,3 +93,40 @@ def test_partial_fields_say_not_recorded():
     assert o["steps"] == 5000
     assert o["stress_avg_0_100"] == NOT_RECORDED  # Garmin's -1 means "no data"
     assert o["resting_hr_bpm"] == NOT_RECORDED
+
+
+class PartialClient(FakeClient):
+    """Records exist but carry zeros, Garmin's -1/-2 'no data' markers, or no fields."""
+
+    def get_daily_summaries(self, a, b):
+        return {"data": [{"calendarDate": a, "stress": {"avgLevel": -1}, "heartRate": {}}]}
+
+    def get_daily_sleep_summaries(self, a, b):
+        return [{"calendarDate": b, "sleepTimeSeconds": 0, "sleepScores": {}}]
+
+    def get_daily_hrv_summaries(self, a, b):
+        return {"hrvSummaries": [{"calendarDate": b}]}
+
+    def get_daily_stress(self, a, b):
+        return [{"calendarDate": b, "values": {"overallStressLevel": -2}}]
+
+    def get_daily_body_battery(self, a, b, *, chunks=None):
+        return [{"date": b, "bodyBatteryValuesArray": [[1, -1], [2, None]]}]
+
+    def get_daily_hydration(self, a, b):
+        return [{"calendarDate": b, "valueInMl": 0.0}]
+
+    def get_activity_workouts(self, activity_id):
+        return [{"workoutName": "x"}]
+
+
+@req("AC3", "C4")
+def test_no_zero_or_blank_when_garmin_sends_partial_records():
+    src, _, _ = make_source(PartialClient())
+    for tool, out in run_all(src).items():
+        for path, value in leaves(out):
+            name = path.rsplit(".", 1)[-1]
+            if name in IDENTIFIERS:
+                continue
+            assert value != 0, f"{tool}{path} is a zero for partial data"
+            assert value not in ("", None, [], {}), f"{tool}{path} is blank for partial data"

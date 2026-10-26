@@ -54,3 +54,15 @@ def test_missing_marker_is_explicit_text():
     src, _, _ = make_source(FakeClient(empty=True))
     out = data.get_heart_rate(src, "2026-10-20")
     assert out["day"] == {"status": "no data recorded"}
+
+
+@req("C3", "C1")
+def test_only_the_auth_command_writes_files():
+    """Static check on the source: the key file in cli.py is the only write path."""
+    writers = []
+    for path in SRC.rglob("*.py"):
+        source = path.read_text(encoding="utf-8")
+        for pattern in ("open(", ".write_text(", ".write_bytes(", "os.open(", "mkdir("):
+            if pattern in source:
+                writers.append((path.name, pattern))
+    assert {name for name, _ in writers} <= {"cli.py"}, writers
