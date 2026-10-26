@@ -1,0 +1,60 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ownmetrics-mcp"
+version = "0.1.0"
+description = "Open-source MCP server that lets Claude and other AI apps answer questions about your own Garmin data, via Garmin's official Personal API. Unofficial; not affiliated with Garmin."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.12"
+authors = [{ name = "Badis Ben Hamida" }]
+keywords = ["mcp", "model-context-protocol", "garmin", "personal-api", "health-data", "fitness", "claude"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "mcp>=2.3,<3",
+    "garmin-connect-personal-api-python>=0.1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.6", "pyright>=1.1.380"]
+
+[project.scripts]
+ownmetrics-mcp = "ownmetrics_mcp.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/badisbenhamida/ownmetrics-mcp"
+Issues = "https://github.com/badisbenhamida/ownmetrics-mcp/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ownmetrics_mcp"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["req(*ids): links a test to requirement IDs in SPEC.md"]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "BLE"]
+ignore = ["S101"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S105", "S106"]
+
+[tool.pyright]
+include = ["src"]
+pythonVersion = "3.12"
+typeCheckingMode = "standard"

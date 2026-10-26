@@ -1,0 +1,30 @@
+import importlib.util
+import sys
+from pathlib import Path
+
+import pytest
+
+req = pytest.mark.req
+SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "traceability.py"
+
+
+def _load():
+    spec = importlib.util.spec_from_file_location("traceability", SCRIPT)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["traceability"] = module  # dataclasses need the module registered
+    spec.loader.exec_module(module)
+    return module
+
+
+@req("AC2")
+def test_every_in_scope_requirement_has_a_test():
+    assert _load().main(["--milestone", "M2", "--check"]) == 0
+
+
+@req("AC2")
+def test_spec_defines_the_tool_catalog():
+    reqs = _load().parse_spec()
+    assert {f"T{i}" for i in range(1, 10)} <= set(reqs)
+    assert reqs["T1"].milestone == "M2" and reqs["T1"].verify == "auto"
+    assert reqs["AC1"].verify == "manual"

@@ -1,0 +1,120 @@
+# ownmetrics-mcp — Specification
+
+Status: v0.1 (Milestone 2). Owner: Badis Ben Hamida.
+This file is the source of truth. Code and tests trace back to the requirement IDs below;
+`scripts/traceability.py` checks the link in CI and writes `TRACEABILITY.md`.
+
+## 1. Purpose
+
+A local, read-only MCP server that lets Claude and other AI apps answer questions about the
+user's **own** Garmin data, using Garmin's official Personal API. Unofficial: not affiliated
+with or endorsed by Garmin.
+
+**Goals (v1)**
+
+1. A non-developer Garmin owner is set up in under 10 minutes.
+2. Works in any MCP client (Claude Desktop, Claude Code, ChatGPT desktop, Cursor and similar).
+3. Every tool has a requirement, a test and a documented example prompt.
+
+**Non-goals (v1):** no hosted version (it runs on the user's machine); no writing to Garmin
+(the Personal API is read-only); no medical advice; no Garmin branding or logo.
+
+## 2. Constitution (non-negotiable rules)
+
+| ID | Rule | Milestone | Verify |
+| --- | --- | --- | --- |
+| C1 | Read-only. No tool writes to Garmin or to the user's files. | M2 | auto |
+| C2 | Local-only. The server talks to Garmin's Personal API and nothing else. No telemetry. | M2 | auto |
+| C3 | No stored health data. No database or cache of Garmin data; only Garmin's own token cache. | M2 | auto |
+| C4 | Missing is never zero. Absent data is reported as "not recorded" or "not provided by Garmin". | M2 | auto |
+| C5 | The Personal API key never appears in tool input, output, logs or errors. | M2 | auto |
+| C6 | Garmin's name appears only descriptively, with the trademark disclaimer; no logo. | M2 | manual |
+| C7 | Results are informational, not medical advice, and every tool description says so. | M2 | auto |
+
+## 3. Garmin Personal API facts this design relies on (verified Oct 2026)
+
+- Key created by the user in Garmin Connect web settings; lifetime 30/90/180/365 days, chosen by the user.
+- Key exchanged for a bearer token valid 24 h, or until the key expires; no refresh tokens.
+- The token does not expose the key's expiry date; it is detectable only in the key's final 24 h.
+- 26 GET-only endpoints. Everything else (training readiness, training status, VO2 max,
+  workouts, devices, gear) returns 404.
+- Per-request range limits: 31 days for daily summaries, sleep, hydration and Body Battery;
+  28 days for stress and steps; 365 days for HRV; about a year for weight; about 45 activities per page.
+- History reaches back to at least 2010 (activities, daily summaries).
+- With a personal key, activity FIT files are the complete original files.
+
+## 4. Requirements
+
+`Verify`: **auto** = covered by automated tests; **manual** = checked by a person at the gate.
+
+### 4.1 Data tools (Milestone 2)
+
+| ID | Tool | Requirement | Milestone | Verify |
+| --- | --- | --- | --- | --- |
+| T1 | `get_daily_overview` | One day: steps, distance, resting/min/max HR, stress, Body Battery, calories, intensity minutes, sleep score. | M2 | auto |
+| T2 | `get_sleep` | Per night in a range: duration, stages, score, Garmin's feedback, avg HR/respiration/stress. | M2 | auto |
+| T3 | `get_hrv` | Per night in a range: last-night average, weekly average, 5-min high, status, baseline. | M2 | auto |
+| T4 | `get_stress_and_body_battery` | Per day in a range: stress level and time per stress band; Body Battery high/low/charged/drained. | M2 | auto |
+| T5 | `get_heart_rate` | One day: resting, min, max, 7-day resting average; the user's HR zones. | M2 | auto |
+| T6 | `list_activities` | Activities in a range, optional type filter, up to 100: id, name, type, start, duration, distance, avg HR, calories, training effect. | M2 | auto |
+| T7 | `get_activity` | One activity: summary, pace/speed, power, cadence, training effect and load, splits, workout steps. | M2 | auto |
+| T8 | `get_body_metrics` | Range: weight entries (kg), BMI, body fat, hydration; SpO2 and fitness age as of the end date. | M2 | auto |
+| T9 | `get_account_status` | Connected or not, granted scopes, a final-day key warning (read from the token's issued lifetime, since Garmin does not expose the key's expiry), which data areas respond, and what Garmin does not provide. | M2 | auto |
+
+### 4.2 Insight tools (Milestone 3)
+
+| ID | Tool | Requirement | Milestone | Verify |
+| --- | --- | --- | --- | --- |
+| I1 | `weekly_training_summary` | Per week (1–12 weeks): sessions, time, distance by sport, time in HR zones. | M3 | auto |
+| I2 | `compare_periods` | Average, change and % change of one metric between two periods. | M3 | auto |
+| I3 | `recovery_correlations` | Correlations of sleep, HRV, Body Battery and next-day training, with sample size and caveat. | M3 | auto |
+| I4 | `analyze_fit_file` | From the complete FIT file by activity ID: pace, power and HR zones, laps, training effect, load, running dynamics (documented fields only). | M3 | auto |
+| I5 | `trend` | Daily series, 7-day rolling average and direction for one metric. | M3 | auto |
+
+### 4.3 Cross-cutting rules
+
+| ID | Requirement | Milestone | Verify |
+| --- | --- | --- | --- |
+| R1 | Dates are ISO `YYYY-MM-DD`; ranges are inclusive, end ≥ start, at most 90 days per tool call. | M2 | auto |
+| R2 | Requests are split into windows within Garmin's per-endpoint range limits (section 3). | M2 | auto |
+| R3 | Requests are throttled; HTTP 429 gets backoff, then a clear "Garmin is limiting requests" error. | M2 | auto |
+| R4 | A 401 on a data call triggers one token refresh and retry before failing. | M2 | auto |
+| R5 | Every field name carries its unit (e.g. `resting_hr_bpm`, `distance_km`). | M2 | auto |
+| R6 | Every tool is annotated read-only and its description carries the not-medical-advice note. | M2 | auto |
+| R7 | `ownmetrics-mcp auth` stores the key in Garmin's standard key file with owner-only permissions, after verifying it with Garmin. | M2 | auto |
+
+### 4.4 Acceptance criteria
+
+| ID | Criterion | Milestone | Verify |
+| --- | --- | --- | --- |
+| AC1 | A new user goes from zero to first answer in under 10 minutes. | M3 | manual |
+| AC2 | Every in-scope requirement maps to at least one test (generated traceability check). | M2 | auto |
+| AC3 | Missing or unsupported data never appears as zero or blank. | M2 | auto |
+| AC4 | Insight math is correct on hand-calculated fixtures. | M3 | auto |
+| AC5 | The API key never appears in output, logs or errors (canary-key test). | M2 | auto |
+| AC6 | An expired or revoked key gives a clear fix-it message. | M2 | auto |
+| AC7 | FIT analysis reads only the requested activity's file, never local paths. | M3 | auto |
+| AC8 | Works in at least three MCP clients. | M3 | manual |
+| AC9 | Every known limitation has a test proving the documented behavior. | M3 | auto |
+
+## 5. Known limitations (from the Personal API)
+
+| ID | Limitation | Behavior |
+| --- | --- | --- |
+| L1 | Read-only, pull-only. | No write tools exist. |
+| L2 | No training readiness, training status, acute/chronic load, VO2 max (404). | Reported as "not provided by Garmin's Personal API". |
+| L3 | No gear, devices or workouts endpoints. | Out of scope. |
+| L4 | No Golf, Courses or Training APIs (business tiers only). | Out of scope. |
+| L5 | Rate limits are unpublished. | R3. |
+| L6 | Key expiry date not exposed. | T9 warns in the final 24 h; Garmin also emails a reminder. |
+| L7 | Some endpoints fail with HTTP 500 beyond their range limits. | R2. |
+
+## 6. Milestones and gates
+
+| Milestone | Scope | Gate |
+| --- | --- | --- |
+| M0 | Spec | Approved by Badis (Oct 25, 2026). |
+| M1 | API verification | Limitations verified with live checks (Oct 25, 2026). |
+| M2 | Auth, data tools T1–T9, CI, governance docs | AC2, AC3, AC5, AC6 pass; Badis reviews the repo. |
+| M3 | Insight tools, docs set, release | All acceptance criteria pass; Badis tests on his own data. |
+| M4 | Launch content | Badis approves each piece before publication. |
