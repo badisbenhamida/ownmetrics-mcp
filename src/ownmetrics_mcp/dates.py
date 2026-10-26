@@ -8,6 +8,7 @@ from datetime import date, timedelta
 from ownmetrics_mcp.errors import InvalidInputError
 
 MAX_TOOL_RANGE_DAYS = 90
+MAX_INSIGHT_RANGE_DAYS = 366  # R12
 _ISO_DAY = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 

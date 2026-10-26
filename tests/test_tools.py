@@ -4,7 +4,7 @@ import pytest
 from fakes import FakeAuthenticator, FakeClient, make_source
 
 from ownmetrics_mcp.errors import InvalidInputError
-from ownmetrics_mcp.tools import data
+from ownmetrics_mcp.tools import data, insights
 from ownmetrics_mcp.tools.shape import NOT_PROVIDED, NOT_RECORDED, pace_min_per_km, weight_kg
 
 req = pytest.mark.req
@@ -29,7 +29,7 @@ def test_daily_overview():
 def test_sleep_per_night():
     src, _, _ = make_source()
     out = data.get_sleep(src, "2026-10-18", "2026-10-20")
-    assert [n["night_of"] for n in out["nights"]] == ["2026-10-18", "2026-10-19", "2026-10-20"]
+    assert [n["woke_up_on"] for n in out["nights"]] == ["2026-10-18", "2026-10-19", "2026-10-20"]
     n = out["nights"][0]
     assert n["sleep_hours"] == 7.5 and n["deep_minutes"] == 90.0 and n["rem_minutes"] == 105.0
     assert n["sleep_score_0_100"] == 84 and n["sleep_score_quality"] == "GOOD"
@@ -41,7 +41,7 @@ def test_hrv_per_night():
     src, _, _ = make_source()
     n = data.get_hrv(src, "2026-10-19", "2026-10-20")["nights"][1]
     assert n == {
-        "night_of": "2026-10-20",
+        "woke_up_on": "2026-10-20",
         "last_night_avg_ms": 48,
         "weekly_avg_ms": 50,
         "last_night_5min_high_ms": 71,
@@ -104,7 +104,7 @@ def test_activity_detail():
     a = out["activity"]
     assert a["type"] == "running" and a["distance_km"] == 10.0
     assert a["avg_pace_min_per_km"] == "5:00"
-    assert a["avg_speed_kmh"] == 12.0
+    assert "avg_speed_kmh" not in a  # R11: running shows pace, not speed
     assert a["normalized_power_w"] == 262 and a["training_load"] == 118
     assert out["splits"][0]["avg_pace_min_per_km"] == "5:00"
     assert out["workouts"] == [{"name": "Tempo 2x5k", "sport": "RUNNING", "workout_step_count": 3}]
@@ -196,6 +196,9 @@ UNIT_SUFFIXES = (
     "_years",
     "_kg",
     "_min_per_km",
+    "_per_week",
+    "_steps",
+    "_sessions",
 )
 UNITLESS = {
     "steps",
@@ -210,6 +213,18 @@ UNITLESS = {
     "body_battery_charged",
     "workout_step_count",
     "body_battery_drained",
+    # counts
+    "sessions",
+    "evening_sessions",
+    "days",
+    "days_with_data",
+    "days_in_range",
+    "paired_days",
+    "nights_with_sleep_score",
+    "nights_with_sleep_hours",
+    "nights_with_hrv",
+    # a correlation coefficient has no unit
+    "correlation_r",
 }
 
 
@@ -237,6 +252,11 @@ def test_every_numeric_field_names_its_unit():
         data.list_activities(src, "2026-10-01", "2026-10-20", None, 3),
         data.get_activity(src, 1),
         data.get_body_metrics(src, "2026-10-19", "2026-10-20"),
+        insights.training_summary(src, "2026-10-01", "2026-10-20", "week"),
+        insights.compare_periods(src, "2026-09-01", "2026-09-30", "2026-10-01", "2026-10-20"),
+        insights.recovery_correlations(src, "2026-09-01", "2026-10-20"),
+        insights.trend(src, "sleep_score", "2026-10-01", "2026-10-20", "day"),
+        insights.trend(src, "training_hours", "2026-08-01", "2026-10-20", "month"),
     ]
     keys = set().union(*(_numeric_keys(o, set()) for o in outputs))
     unlabelled = {k for k in keys if k not in UNITLESS and not k.endswith(UNIT_SUFFIXES)}

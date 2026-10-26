@@ -5,6 +5,7 @@ server must still start cleanly, list all tools, and explain the missing key.
 """
 
 import json
+import os
 import shutil
 import sys
 
@@ -20,7 +21,12 @@ async def _session_check(home: str) -> tuple[list, str]:
     params = StdioServerParameters(
         command=sys.executable,
         args=["-m", "ownmetrics_mcp"],
-        env={"HOME": home, "USERPROFILE": home, "PATH": "", "PYTHONPATH": ":".join(sys.path)},
+        env={
+            "HOME": home,
+            "USERPROFILE": home,
+            "PATH": "",
+            "PYTHONPATH": os.pathsep.join(sys.path),
+        },
     )
     async with stdio_client(params) as (read, write), ClientSession(read, write) as session:
         await session.initialize()
@@ -34,7 +40,7 @@ async def _session_check(home: str) -> tuple[list, str]:
 @pytest.mark.skipif(shutil.which("true") is None, reason="needs a POSIX-like environment")
 def test_server_starts_over_stdio_and_explains_missing_key(tmp_path):
     tools, text = anyio.run(_session_check, str(tmp_path))
-    assert len(tools) == 9
+    assert len(tools) == 13
     status = json.loads(text)
     assert status["connected"] is False
     assert "ownmetrics-mcp auth" in status["problem"]

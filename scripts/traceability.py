@@ -4,7 +4,7 @@ Reads requirement IDs from SPEC.md tables, finds tests tagged `@pytest.mark.req(
 writes TRACEABILITY.md, and with --check fails when an in-scope automated requirement has
 no test, or a test cites an ID that SPEC.md does not define.
 
-Usage: python scripts/traceability.py [--milestone M2] [--check]
+Usage: python scripts/traceability.py [--milestone M3] [--check]
 """
 
 from __future__ import annotations
@@ -127,7 +127,7 @@ def render(reqs: dict[str, Requirement], milestone: str) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--milestone", default="M2")
+    ap.add_argument("--milestone", default="M3")
     ap.add_argument("--check", action="store_true")
     ap.add_argument("--out", type=Path, default=OUT, help="where to write the matrix")
     args = ap.parse_args(argv)

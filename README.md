@@ -19,6 +19,9 @@ training summary, period comparisons, trends, FIT analysis) are next.
 - "List my runs this month with distance and average pace."
 - "Break down my last long ride: power, heart rate, training effect."
 - "How has my resting heart rate changed since September?"
+- "Which month did I sleep best this year, and how much did I train that month?"
+- "Compare my sleep and training this October with last October."
+- "Do my evening tennis sessions go with worse sleep?"
 - "Is my Garmin connection working?"
 
 ## Set up in about 10 minutes
@@ -95,6 +98,19 @@ Then ask: *"Check my Garmin connection, then summarize my sleep and HRV for the 
 | `get_body_metrics` | Weigh-ins, BMI, body fat, hydration; Pulse Ox and fitness age |
 | `get_account_status` | Whether your key works, a warning in its final day, which of the data areas above respond |
 
+**Insight tools** do the fetching and the math in one call, over up to a year:
+
+| Tool | What it answers |
+| --- | --- |
+| `training_summary` | Training by week or month: sessions, hours, hours per week, evening sessions, per-sport breakdown |
+| `compare_periods` | Two periods side by side: sleep, HRV, resting heart rate, stress, Body Battery, steps, training, with change and % change |
+| `recovery_correlations` | Whether training goes with better or worse sleep and HRV the night after, with sample size and strength. Correlation, not cause. |
+| `trend` | One metric by day, week or month, with direction (up, down or flat) and change per 30 days |
+
+Sleep and HRV are dated by the morning the night ended (`woke_up_on`), as Garmin does.
+Pace is shown for running, walking and hiking; speed for other sports; distance says
+"not applicable" for sports like strength training or pilates.
+
 Every field name carries its unit (`resting_hr_bpm`, `distance_km`, `sleep_score_0_100`).
 Where Garmin has no value, the field says **"not recorded"**, never zero.
 
@@ -103,8 +119,8 @@ Where Garmin has no value, the field says **"not recorded"**, never zero.
 - **Read-only:** nothing can be sent to your watch or written to Garmin Connect.
 - **Not available:** training readiness, training status, acute/chronic load, VO2 max,
   gear and devices. The tools say "not provided by Garmin's Personal API" rather than guessing.
-- Questions are limited to **90 days** at a time; the server splits requests to stay within
-  Garmin's own limits.
+- Data tools cover up to **90 days** per question and insight tools up to **366 days**; the
+  server splits requests to stay within Garmin's own limits.
 
 ## Privacy and security
 

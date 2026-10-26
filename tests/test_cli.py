@@ -5,6 +5,7 @@ import stat
 import pytest
 from fakes import FakeAuthenticator
 
+from ownmetrics_mcp import __version__
 from ownmetrics_mcp.cli import main, run_auth
 
 req = pytest.mark.req
@@ -63,4 +64,4 @@ def test_version_flag(capsys):
     with pytest.raises(SystemExit) as exit_info:
         main(["--version"])
     assert exit_info.value.code == 0
-    assert "ownmetrics-mcp 0.1.0" in capsys.readouterr().out
+    assert f"ownmetrics-mcp {__version__}" in capsys.readouterr().out

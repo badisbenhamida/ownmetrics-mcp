@@ -20,7 +20,7 @@ def _load():
 @req("AC2")
 def test_every_in_scope_requirement_has_a_test(tmp_path):
     out = tmp_path / "TRACEABILITY.md"  # never rewrite the committed matrix from a test
-    assert _load().main(["--milestone", "M2", "--check", "--out", str(out)]) == 0
+    assert _load().main(["--milestone", "M3", "--check", "--out", str(out)]) == 0
     assert "**MISSING**" not in out.read_text()
 
 
@@ -30,3 +30,11 @@ def test_spec_defines_the_tool_catalog():
     assert {f"T{i}" for i in range(1, 10)} <= set(reqs)
     assert reqs["T1"].milestone == "M2" and reqs["T1"].verify == "auto"
     assert reqs["AC1"].verify == "manual"
+
+
+@req("AC9")
+def test_every_known_limitation_has_a_test():
+    module = _load()
+    reqs, tests = module.parse_spec(), module.collect_tests()
+    limitations = {rid for rid in reqs if rid.startswith("L")}
+    assert limitations and limitations <= set(tests), limitations - set(tests)

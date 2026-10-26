@@ -27,8 +27,8 @@ from ownmetrics_mcp.tools.shape import (
     envelope,
     get,
     meters_to_km,
+    motion_fields,
     num,
-    pace_min_per_km,
     seconds_to_hours,
     seconds_to_minutes,
     text,
@@ -126,11 +126,11 @@ def get_sleep(src: GarminSource, start: str, end: str) -> dict[str, Any]:
     for day in _days(first, last):
         n = nights.get(day)
         if n is None or _sleep_seconds(n) is None:
-            rows.append({"night_of": day, **NO_DAY})
+            rows.append({"woke_up_on": day, **NO_DAY})
             continue
         rows.append(
             {
-                "night_of": day,
+                "woke_up_on": day,
                 "sleep_hours": seconds_to_hours(get(n, "sleepTimeSeconds")),
                 "deep_minutes": seconds_to_minutes(get(n, "deepSleepSeconds")),
                 "light_minutes": seconds_to_minutes(get(n, "lightSleepSeconds")),
@@ -157,11 +157,11 @@ def get_hrv(src: GarminSource, start: str, end: str) -> dict[str, Any]:
     for day in _days(first, last):
         h = nights.get(day)
         if h is None or get(h, "lastNightAvg") is None:
-            rows.append({"night_of": day, **NO_DAY})
+            rows.append({"woke_up_on": day, **NO_DAY})
             continue
         rows.append(
             {
-                "night_of": day,
+                "woke_up_on": day,
                 "last_night_avg_ms": num(get(h, "lastNightAvg"), digits=0),
                 "weekly_avg_ms": num(get(h, "weeklyAvg"), digits=0),
                 "last_night_5min_high_ms": num(get(h, "lastNight5MinHigh"), digits=0),
@@ -270,13 +270,14 @@ def get_heart_rate(src: GarminSource, day: str) -> dict[str, Any]:
 
 
 def _activity_row(a: Any) -> dict[str, Any]:
+    type_key = get(a, "activityType", "typeKey")
     return {
         "activity_id": get(a, "activityId"),
         "name": text(get(a, "activityName")),
-        "type": text(get(a, "activityType", "typeKey")),
+        "type": text(type_key),
         "start_local": text(get(a, "startTimeLocal")),
         "duration_minutes": seconds_to_minutes(get(a, "duration")),
-        "distance_km": meters_to_km(get(a, "distance")),
+        **motion_fields(type_key, get(a, "distance")),
         "avg_hr_bpm": num(get(a, "averageHR"), digits=0),
         "max_hr_bpm": num(get(a, "maxHR"), digits=0),
         "calories_kcal": num(get(a, "calories"), digits=0),
@@ -328,17 +329,16 @@ def get_activity(src: GarminSource, activity_id: int) -> dict[str, Any]:
         ) from None
     workouts_raw = _optional(lambda: src.activity_workouts(activity_id))
     s = get(a, "summaryDTO") or get(a, "summary") or {}
+    type_key = get(a, "activityTypeDTO", "typeKey") or get(a, "activityType", "typeKey")
     detail = {
         "activity_id": activity_id,
         "name": text(get(a, "activityName")),
-        "type": text(get(a, "activityTypeDTO", "typeKey") or get(a, "activityType", "typeKey")),
+        "type": text(type_key),
         "start_local": text(get(s, "startTimeLocal")),
         "duration_minutes": seconds_to_minutes(get(s, "duration")),
         "moving_minutes": seconds_to_minutes(get(s, "movingDuration")),
-        "distance_km": meters_to_km(get(s, "distance")),
+        **motion_fields(type_key, get(s, "distance"), get(s, "averageSpeed")),
         "elevation_gain_m": num(get(s, "elevationGain"), digits=0),
-        "avg_pace_min_per_km": pace_min_per_km(get(s, "averageSpeed")),
-        "avg_speed_kmh": num(get(s, "averageSpeed"), scale=3.6),
         "avg_hr_bpm": num(get(s, "averageHR"), digits=0),
         "max_hr_bpm": num(get(s, "maxHR"), digits=0),
         "avg_power_w": num(get(s, "averagePower"), digits=0),
@@ -355,10 +355,9 @@ def get_activity(src: GarminSource, activity_id: int) -> dict[str, Any]:
     splits = [
         {
             "type": text(get(sp, "splitType")),
-            "distance_km": meters_to_km(get(sp, "distance")),
+            **motion_fields(type_key, get(sp, "distance"), get(sp, "averageSpeed")),
             "duration_minutes": seconds_to_minutes(get(sp, "duration")),
             "avg_hr_bpm": num(get(sp, "averageHR"), digits=0),
-            "avg_pace_min_per_km": pace_min_per_km(get(sp, "averageSpeed")),
         }
         for sp in get(a, "splitSummaries") or []
     ]

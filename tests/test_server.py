@@ -18,6 +18,10 @@ EXPECTED = {
     "get_activity": "T7",
     "get_body_metrics": "T8",
     "get_account_status": "T9",
+    "training_summary": "I1",
+    "compare_periods": "I2",
+    "recovery_correlations": "I3",
+    "trend": "I4",
 }
 
 

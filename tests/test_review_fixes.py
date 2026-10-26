@@ -162,27 +162,41 @@ def test_concurrent_calls_sign_in_once_and_share_one_client():
 
 @req("R9", "R3")
 def test_throttle_spaces_concurrent_requests():
-    stamps: list[float] = []
+    """Deterministic: a fake clock that only moves when the throttle sleeps, and a record of
+    every time the throttle lets a request through (written while it holds its lock)."""
+    clock = [100.0]
+    granted: list[float] = []
 
-    class Stamping(FakeClient):
-        def get_user_profile_settings(self):
-            stamps.append(time.monotonic())
-            return {}
+    class Recording(GarminSource):
+        @property
+        def _last_request(self) -> float:
+            return self.__dict__.get("_lr", float("-inf"))
 
-    src = GarminSource(
+        @_last_request.setter
+        def _last_request(self, value: float) -> None:
+            if value != float("-inf"):
+                granted.append(value)
+            self.__dict__["_lr"] = value
+
+    def fake_sleep(s: float) -> None:
+        clock[0] += s
+
+    src = Recording(
         key_loader=lambda: "TEST-KEY-throttle-0004",
         authenticator_factory=FakeAuthenticator,
-        client_factory=lambda t: Stamping(t),
+        client_factory=FakeClient,
         min_interval_s=0.03,
+        sleep=fake_sleep,
+        monotonic=lambda: clock[0],
     )
     threads = [threading.Thread(target=src.profile_settings) for _ in range(5)]
     for t in threads:
         t.start()
     for t in threads:
         t.join()
-    stamps.sort()
-    gaps = [b - a for a, b in zip(stamps, stamps[1:], strict=False)]
-    assert min(gaps) >= 0.025
+    assert len(granted) == 5
+    gaps = [b - a for a, b in zip(granted, granted[1:], strict=False)]
+    assert min(gaps) >= 0.03 - 1e-9
 
 
 # -- R10: duplicates and ordering ------------------------------------------------------
@@ -239,7 +253,7 @@ def test_zero_hour_sleep_is_no_data_not_zero():
 
     src, _, _ = make_source(ZeroSleep())
     night = data.get_sleep(src, "2026-10-20", "2026-10-20")["nights"][0]
-    assert night == {"night_of": "2026-10-20", "status": "no data recorded"}
+    assert night == {"woke_up_on": "2026-10-20", "status": "no data recorded"}
     assert data.get_daily_overview(src, "2026-10-20")["overview"]["sleep"] == {
         "status": "no data recorded"
     }
