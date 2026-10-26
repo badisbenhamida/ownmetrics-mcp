@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1 — unreleased (Milestone 5)
+
+- One-click install for Claude Desktop: each release now includes
+  `ownmetrics-mcp-<version>.mcpb`. Double-click it and paste your key (B1–B5).
+- A blank `GARMIN_PERSONAL_API_KEY` now counts as not set, so the key saved by
+  `ownmetrics-mcp auth` is used instead of failing on an empty key.
+
 ## 0.2.0 — unreleased (Milestone 3)
 
 - Install from PyPI: `uvx ownmetrics-mcp` (README updated). Releases publish to PyPI and the

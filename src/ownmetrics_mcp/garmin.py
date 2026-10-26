@@ -11,9 +11,10 @@ from __future__ import annotations
 import base64
 import json
 import logging
+import os
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from datetime import date
 from typing import Any, Protocol
 
@@ -53,6 +54,20 @@ ACTIVITY_PAGE_SIZE = 40  # Garmin fails above ~45 per page.
 
 Json = Any
 
+KEY_ENV = "GARMIN_PERSONAL_API_KEY"
+
+
+def load_key(env: Mapping[str, str] | None = None) -> str:
+    """Garmin's key lookup (environment, then the saved key file), except that a blank or
+    unfilled environment value counts as not set (B2). Claude Desktop passes an optional
+    bundle setting the user left empty as "" (or, in some hosts, the raw placeholder), and
+    Garmin's client would otherwise reject it as an empty key instead of using the file."""
+    environment = dict(os.environ if env is None else env)
+    value = environment.get(KEY_ENV)
+    if value is not None and (not value.strip() or value.strip().startswith("${")):
+        del environment[KEY_ENV]
+    return resolve_api_key(env=environment)
+
 
 class _Token(Protocol):
     access_token: str
@@ -65,7 +80,7 @@ class GarminSource:
     def __init__(
         self,
         *,
-        key_loader: Callable[[], str] = resolve_api_key,
+        key_loader: Callable[[], str] = load_key,
         authenticator_factory: Callable[[], Any] = PersonalApiAuthenticator,
         client_factory: Callable[[str], Any] = GarminPersonalApiClient,
         min_interval_s: float = 0.25,

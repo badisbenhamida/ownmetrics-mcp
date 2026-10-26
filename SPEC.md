@@ -1,6 +1,6 @@
 # ownmetrics-mcp — Specification
 
-Status: v0.2.0 released (Milestone 3 closed Oct 26, 2026). Owner: Badis Ben Hamida.
+Status: v0.2.1 in progress (Milestone 5). v0.2.0 released; Milestone 3 closed Oct 26, 2026. Owner: Badis Ben Hamida.
 This file is the source of truth. Code and tests trace back to the requirement IDs below;
 `scripts/traceability.py` checks the link in CI and writes `TRACEABILITY.md`.
 
@@ -79,7 +79,20 @@ Metrics shared by I2 and I4: `sleep_score`, `sleep_hours`, `deep_sleep_minutes`,
 | I4 | `trend` | One shared metric over a range, grouped by `day`, `week` or `month`: the series (with a 7-day rolling average for daily grouping), the change per 30 days from a least-squares fit, and a direction of up, down or flat (flat when the fitted change over the whole range is under 2% of the average). | M3 | auto |
 | I5 | `analyze_fit_file` | From the complete FIT file by activity ID: laps, HR zones over time, splits, training effect, running dynamics (documented fields only). Deferred to a later release; needs a FIT-reading dependency. | v0.3 | auto |
 
-### 4.3 Cross-cutting rules
+### 4.3 One-click bundle (Milestone 5, v0.2.1)
+
+A Claude Desktop extension (MCP Bundle, `.mcpb`) so a Garmin owner without developer tools
+installs by double-clicking one file and pasting their key. Same server, same constitution.
+
+| ID | Requirement | Milestone | Verify |
+| --- | --- | --- | --- |
+| B1 | Each release publishes `ownmetrics-mcp-<version>.mcpb` (manifest 0.4, server type `uv`) that starts the same server as `uvx ownmetrics-mcp`, with the same tools. | M5 | auto |
+| B2 | The bundle's one setting is the Garmin Personal API key: sensitive (masked, stored by Claude Desktop) and optional, passed as `GARMIN_PERSONAL_API_KEY`. A blank or unfilled value counts as not set, so the key saved by `ownmetrics-mcp auth` is used; never an empty key. | M5 | auto |
+| B3 | The manifest lists every tool the server registers, links the privacy policy, and uses Garmin's name only descriptively (C6): not in the bundle's name, no logo. | M5 | auto |
+| B4 | The release workflow builds the bundle, validates it with the official `mcpb` tool, and attaches it to the GitHub Release; the bundle's version matches the package. | M5 | auto |
+| B5 | The README opens with the one-click install for Claude Desktop; the `uvx` route stays for other apps. | M5 | manual |
+
+### 4.4 Cross-cutting rules
 
 | ID | Requirement | Milestone | Verify |
 | --- | --- | --- | --- |
@@ -96,7 +109,7 @@ Metrics shared by I2 and I4: `sleep_score`, `sleep_hours`, `deep_sleep_minutes`,
 | R11 | Activity figures fit the sport: pace (`pace_min_per_km`) only for running, walking and hiking types, speed (`avg_speed_kmh`) for other moving sports, neither for racket sports (tennis, pickleball and similar), which still report distance; sports without distance (e.g. strength, pilates, breathwork) report distance as "not applicable", never 0. | M3 | auto |
 | R12 | Insight tools accept ranges of up to 366 days, fetched within Garmin's per-endpoint limits (R2). | M3 | auto |
 
-### 4.4 Acceptance criteria
+### 4.5 Acceptance criteria
 
 | ID | Criterion | Milestone | Verify |
 | --- | --- | --- | --- |
@@ -130,6 +143,6 @@ Metrics shared by I2 and I4: `sleep_score`, `sleep_hours`, `deep_sleep_minutes`,
 | M1 | API verification | Limitations verified with live checks (Oct 25, 2026). |
 | M2 | Auth, data tools T1–T9, CI, governance docs | AC2, AC3, AC5, AC6 pass; Badis reviews the repo. Passed Oct 25, 2026. |
 | M3 | Fixes from real use (T2 `woke_up_on`, R11), insight tools I1–I4, docs set, release (PyPI, MCP Registry) | All M3 acceptance criteria pass; Badis tests on his own data. **Closed Oct 26, 2026 by Badis, with a waiver:** automated criteria pass; tested on Badis's data (insight results matched a hand calculation exactly); v0.2.0 on PyPI and the MCP Registry. AC8 partly verified (Claude Desktop, Claude Code; a third client not yet tested). AC1 and a re-check of Garmin's current Terms of Use waived, to revisit if users report setup problems. |
-| v0.2.1 | One-click Claude Desktop bundle (.mcpb), moved out of M3 | Spec reviewed and approved before work starts. |
+| M5 | v0.2.1: one-click Claude Desktop bundle (B1–B5), moved out of M3 | Spec approved by Badis (Oct 26, 2026). Badis installs the released `.mcpb` by double-click and gets an answer to "Is my Garmin connection working?". |
 | v0.3 | FIT-file analysis (I5, AC7) | Spec reviewed again before work starts. |
 | M4 | Launch content | Badis approves each piece before publication. Substack article and LinkedIn post published Oct 2026; Facebook post drafted, not yet posted. |

@@ -4,7 +4,7 @@ Reads requirement IDs from SPEC.md tables, finds tests tagged `@pytest.mark.req(
 writes TRACEABILITY.md, and with --check fails when an in-scope automated requirement has
 no test, or a test cites an ID that SPEC.md does not define.
 
-Usage: python scripts/traceability.py [--milestone M3] [--check]
+Usage: python scripts/traceability.py [--milestone M5] [--check]
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parent.parent
 SPEC = ROOT / "SPEC.md"
 TESTS = ROOT / "tests"
 OUT = ROOT / "TRACEABILITY.md"
-ID_RE = re.compile(r"^(T|I|R|AC|C|L)\d+$")
+ID_RE = re.compile(r"^(T|I|B|R|AC|C|L)\d+$")
 
 
 @dataclass
@@ -106,7 +106,7 @@ def render(reqs: dict[str, Requirement], milestone: str) -> str:
         "| ID | Requirement | Milestone | Verify | Tests |",
         "| --- | --- | --- | --- | --- |",
     ]
-    order = {"C": 0, "T": 1, "I": 2, "R": 3, "AC": 4, "L": 5}
+    order = {"C": 0, "T": 1, "I": 2, "B": 3, "R": 4, "AC": 5, "L": 6}
 
     def key(r: Requirement) -> tuple[int, int]:
         prefix = re.match(r"[A-Z]+", r.rid).group(0)  # type: ignore[union-attr]
@@ -127,7 +127,7 @@ def render(reqs: dict[str, Requirement], milestone: str) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--milestone", default="M3")
+    ap.add_argument("--milestone", default="M5")
     ap.add_argument("--check", action="store_true")
     ap.add_argument("--out", type=Path, default=OUT, help="where to write the matrix")
     args = ap.parse_args(argv)

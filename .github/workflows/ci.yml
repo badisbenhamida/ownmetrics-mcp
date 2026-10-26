@@ -35,6 +35,9 @@ jobs:
         run: pytest -q
       - name: Traceability (every in-scope requirement has a test)
         run: python scripts/traceability.py --check
+      - name: Claude Desktop bundle builds, validates and starts (B1-B4)
+        if: matrix.os == 'ubuntu-latest' && matrix.python == '3.13'
+        run: python scripts/build_bundle.py --smoke
 
   secrets:
     # gitleaks-action does not support release events. Every commit is already scanned on
