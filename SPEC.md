@@ -1,6 +1,6 @@
 # ownmetrics-mcp — Specification
 
-Status: v0.2 draft (Milestone 3). Owner: Badis Ben Hamida.
+Status: v0.2.0 released (Milestone 3 closed Oct 26, 2026). Owner: Badis Ben Hamida.
 This file is the source of truth. Code and tests trace back to the requirement IDs below;
 `scripts/traceability.py` checks the link in CI and writes `TRACEABILITY.md`.
 
@@ -77,7 +77,7 @@ Metrics shared by I2 and I4: `sleep_score`, `sleep_hours`, `deep_sleep_minutes`,
 | I2 | `compare_periods` | Two date ranges side by side for the shared metrics (all, or a chosen subset): average for each period, change and % change, and the number of days with data on each side. A metric with no data on one side is "not recorded", never zero. | M3 | auto |
 | I3 | `recovery_correlations` | Night-by-night link between each day's training (hours, summed aerobic training effect, evening session yes/no) and what follows: that night's sleep score and hours (the record whose `woke_up_on` is the next day) and the next morning's HRV. Reports the correlation (Pearson r), sample size and a plain strength label (none < 0.1, weak < 0.3, moderate < 0.5, strong), plus averages for training days vs rest days and evening vs earlier sessions. Needs at least 14 paired days, otherwise says "not enough data". Always states that correlation does not show cause. Optional sport filter (a Garmin activity type, matched by name, e.g. `tennis` matches `tennis_v2`): only that sport counts as training, its days are compared with rest days, and days with only other training are left out and counted. | M3 | auto |
 | I4 | `trend` | One shared metric over a range, grouped by `day`, `week` or `month`: the series (with a 7-day rolling average for daily grouping), the change per 30 days from a least-squares fit, and a direction of up, down or flat (flat when the fitted change over the whole range is under 2% of the average). | M3 | auto |
-| I5 | `analyze_fit_file` | From the complete FIT file by activity ID: laps, HR zones over time, splits, training effect, running dynamics (documented fields only). Deferred to a later release; needs a FIT-reading dependency. | v0.2 | auto |
+| I5 | `analyze_fit_file` | From the complete FIT file by activity ID: laps, HR zones over time, splits, training effect, running dynamics (documented fields only). Deferred to a later release; needs a FIT-reading dependency. | v0.3 | auto |
 
 ### 4.3 Cross-cutting rules
 
@@ -106,7 +106,7 @@ Metrics shared by I2 and I4: `sleep_score`, `sleep_hours`, `deep_sleep_minutes`,
 | AC4 | Insight math is correct on hand-calculated fixtures. | M3 | auto |
 | AC5 | The API key never appears in output, logs or errors (canary-key test). | M2 | auto |
 | AC6 | An expired or revoked key gives a clear fix-it message. | M2 | auto |
-| AC7 | FIT analysis reads only the requested activity's file, never local paths. | v0.2 | auto |
+| AC7 | FIT analysis reads only the requested activity's file, never local paths. | v0.3 | auto |
 | AC8 | Works in at least three MCP clients. | M3 | manual |
 | AC9 | Every known limitation has a test proving the documented behavior. | M3 | auto |
 
@@ -128,7 +128,8 @@ Metrics shared by I2 and I4: `sleep_score`, `sleep_hours`, `deep_sleep_minutes`,
 | --- | --- | --- |
 | M0 | Spec | Approved by Badis (Oct 25, 2026). |
 | M1 | API verification | Limitations verified with live checks (Oct 25, 2026). |
-| M2 | Auth, data tools T1–T9, CI, governance docs | AC2, AC3, AC5, AC6 pass; Badis reviews the repo. |
-| M3 | Fixes from real use (T2 `woke_up_on`, R11), insight tools I1–I4, docs set, release (.mcpb bundle, PyPI, MCP registry) | All M3 acceptance criteria pass; Badis tests on his own data. |
-| v0.2 | FIT-file analysis (I5, AC7) | Spec reviewed again before work starts. |
-| M4 | Launch content | Badis approves each piece before publication. |
+| M2 | Auth, data tools T1–T9, CI, governance docs | AC2, AC3, AC5, AC6 pass; Badis reviews the repo. Passed Oct 25, 2026. |
+| M3 | Fixes from real use (T2 `woke_up_on`, R11), insight tools I1–I4, docs set, release (PyPI, MCP Registry) | All M3 acceptance criteria pass; Badis tests on his own data. **Closed Oct 26, 2026 by Badis, with a waiver:** automated criteria pass; tested on Badis's data (insight results matched a hand calculation exactly); v0.2.0 on PyPI and the MCP Registry. AC8 partly verified (Claude Desktop, Claude Code; a third client not yet tested). AC1 and a re-check of Garmin's current Terms of Use waived, to revisit if users report setup problems. |
+| v0.2.1 | One-click Claude Desktop bundle (.mcpb), moved out of M3 | Spec reviewed and approved before work starts. |
+| v0.3 | FIT-file analysis (I5, AC7) | Spec reviewed again before work starts. |
+| M4 | Launch content | Badis approves each piece before publication. Substack article and LinkedIn post published Oct 2026; Facebook post drafted, not yet posted. |
