@@ -5,7 +5,7 @@ import json
 import logging
 
 import pytest
-from fakes import FakeAuthenticator, FakeClient, make_source
+from fakes import FakeAuthenticator, FakeClient, make_jwt, make_source
 
 from ownmetrics_mcp.redact import RedactingFilter, install_log_redaction, redact, register_secret
 from ownmetrics_mcp.server import build_server
@@ -71,7 +71,7 @@ def test_no_tool_accepts_a_key_or_token_argument():
 @req("AC5")
 def test_redact_scrubs_registered_secrets_headers_and_jwts():
     register_secret(CANARY)
-    jwt = "eyJhbGciOiJub25lIn0.eyJzdWIiOiJ0ZXN0In0x.c2lnbmF0dXJlLXBsYWNl"
+    jwt = make_jwt()  # built at runtime: no token-shaped literal in the repo
     text = f"key={CANARY} Authorization: ApiKey abc123 Bearer {jwt}"
     out = redact(text)
     assert CANARY not in out and "abc123" not in out and jwt not in out

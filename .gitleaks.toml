@@ -1,0 +1,12 @@
+# Secret scanning config. Extends gitleaks' default rules.
+# The only exceptions are the deliberately fake values the tests use to prove that keys are
+# never leaked (C5/AC5). Real keys anywhere, including in tests/, are still caught.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Synthetic test credentials (never real)"
+regexes = [
+  '''(?:CANARY|TEST)-KEY-[A-Za-z0-9-]+''',
+]

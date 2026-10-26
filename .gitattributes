@@ -1,0 +1,4 @@
+# Keep Unix line endings everywhere (Windows CI checkouts otherwise fail the format check).
+* text=auto eol=lf
+*.fit binary
+*.zip binary
