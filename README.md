@@ -24,10 +24,25 @@ period comparisons, trends, training vs sleep). FIT-file analysis is next.
 - "Do my evening tennis sessions go with worse sleep?"
 - "Is my Garmin connection working?"
 
-## Set up in about 10 minutes
+## Easiest: one-click install for Claude Desktop
 
-You need a Garmin Connect account and an AI app that supports MCP servers (Claude Desktop,
-Claude Code, ChatGPT desktop, Cursor and others).
+1. Create your Garmin Personal API key: sign in to Garmin Connect on the web, open
+   [Settings → Personal API](https://connect.garmin.com/app/settings/personalApiToken),
+   select **Create Key**, accept Garmin's terms, choose how long it lasts, and copy it.
+2. Download `ownmetrics-mcp-<version>.mcpb` from the
+   [latest release](https://github.com/badisbenhamida/ownmetrics-mcp/releases/latest).
+3. Double-click it. Claude Desktop opens and asks to install it; paste your key when asked.
+   Claude Desktop keeps it masked. (Already saved a key with `ownmetrics-mcp auth`? Leave
+   the field blank.)
+4. Ask Claude: *"Is my Garmin connection working?"*
+
+The bundle isn't signed yet, so Claude Desktop may show a warning before installing. The
+first start downloads a few Python packages, so it needs internet and can take a moment.
+
+## Set up for other apps (about 10 minutes)
+
+For Claude Code, ChatGPT desktop, Cursor and other apps that support MCP servers, or if you
+prefer Claude Desktop's config file:
 
 ### 1. Install uv (one time)
 

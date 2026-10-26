@@ -1,0 +1,122 @@
+{
+  "manifest_version": "0.4",
+  "name": "ownmetrics-mcp",
+  "display_name": "OwnMetrics",
+  "version": "0.2.1",
+  "description": "Ask Claude about your own Garmin data, via Garmin's official Personal API. Read-only, runs on your computer. Unofficial; not affiliated with Garmin.",
+  "long_description": "OwnMetrics lets Claude answer questions about your own sleep, HRV, stress, Body Battery, heart rate and activities, using Garmin's official Personal API and a key you create in Garmin Connect. It is read-only, talks only to Garmin, stores no health data, and never reports missing data as zero. Results are informational, not medical advice. Unofficial project: not affiliated with, endorsed by or supported by Garmin. \"Garmin\" and \"Garmin Connect\" are trademarks of Garmin Ltd. or its subsidiaries.",
+  "author": {
+    "name": "Badis Ben Hamida",
+    "url": "https://github.com/badisbenhamida"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/badisbenhamida/ownmetrics-mcp"
+  },
+  "homepage": "https://github.com/badisbenhamida/ownmetrics-mcp",
+  "documentation": "https://github.com/badisbenhamida/ownmetrics-mcp#readme",
+  "support": "https://github.com/badisbenhamida/ownmetrics-mcp/issues",
+  "icon": "assets/icon.png",
+  "server": {
+    "type": "uv",
+    "entry_point": "src/ownmetrics_mcp/__main__.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "${__dirname}",
+        "ownmetrics-mcp"
+      ],
+      "env": {
+        "GARMIN_PERSONAL_API_KEY": "${user_config.garmin_api_key}"
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "get_daily_overview",
+      "description": "One day's overview: steps, distance, floors, resting/min/max heart rate, stress, Body Battery, calories, intensity minutes, sleep hours and sleep score."
+    },
+    {
+      "name": "get_sleep",
+      "description": "Sleep per night over a date range: hours, deep/light/REM/awake minutes, sleep score, Garmin's feedback, average heart rate, respiration and sleep stress. Each night is labelled woke_up_on, the morning it ended."
+    },
+    {
+      "name": "get_hrv",
+      "description": "Heart rate variability (HRV) per night over a date range: last-night average, weekly average, 5-minute high, status and personal baseline, in milliseconds. Each night is labelled woke_up_on, the morning it ended."
+    },
+    {
+      "name": "get_stress_and_body_battery",
+      "description": "Per day over a date range: average stress (0-100), minutes in each stress band, and Body Battery high, low, charged and drained."
+    },
+    {
+      "name": "get_heart_rate",
+      "description": "One day's heart rate (resting, min, max, 7-day resting average) and the user's heart rate zones."
+    },
+    {
+      "name": "list_activities",
+      "description": "List activities in a date range, newest first, optionally filtered by Garmin activity type key (e.g. running, cycling, indoor_cycling, lap_swimming, strength_training). Returns ids for get_activity."
+    },
+    {
+      "name": "get_activity",
+      "description": "Details of one activity by id: duration, distance, pace, speed, heart rate, power, cadence, training effect and load, splits and structured workout steps."
+    },
+    {
+      "name": "get_body_metrics",
+      "description": "Body metrics over a date range: weigh-ins (kg), BMI, body fat, hydration; plus Pulse Ox (SpO2) and fitness age as of the end date."
+    },
+    {
+      "name": "get_account_status",
+      "description": "Check the Garmin connection: whether the key works, granted scopes, a warning if the key expires within a day, which data areas respond, and what Garmin does not provide. Use this first when something fails."
+    },
+    {
+      "name": "training_summary",
+      "description": "Training totals over up to 366 days, by week or month: sessions, hours, hours per week, evening sessions, average aerobic training effect, and a per-sport breakdown. Use for 'how much did I train' questions."
+    },
+    {
+      "name": "compare_periods",
+      "description": "Compare two periods (each up to 366 days), e.g. this October vs last October: average sleep, HRV, resting heart rate, stress, Body Battery, steps and training per week, with change and % change and how many days of data each side has."
+    },
+    {
+      "name": "recovery_correlations",
+      "description": "Does training go with better or worse sleep and HRV? Over up to 366 days, pairs each day's training with the night after it: correlations with sample size and strength, plus averages for training vs rest days and evening vs earlier sessions. Can focus on one sport. Correlation is not cause; say so when answering."
+    },
+    {
+      "name": "trend",
+      "description": "Trend of one metric over up to 366 days, by day, week or month: the series, change per 30 days and whether it is going up, down or flat. Daily grouping adds a 7-day rolling average."
+    }
+  ],
+  "tools_generated": false,
+  "keywords": [
+    "garmin",
+    "health",
+    "fitness",
+    "sleep",
+    "hrv",
+    "personal-api"
+  ],
+  "license": "MIT",
+  "privacy_policies": [
+    "https://github.com/badisbenhamida/ownmetrics-mcp/blob/main/PRIVACY.md"
+  ],
+  "compatibility": {
+    "platforms": [
+      "darwin",
+      "win32",
+      "linux"
+    ],
+    "runtimes": {
+      "python": ">=3.12"
+    }
+  },
+  "user_config": {
+    "garmin_api_key": {
+      "type": "string",
+      "title": "Garmin Personal API key",
+      "description": "Create it in Garmin Connect: Settings, Personal API. Leave blank if you already saved a key with `ownmetrics-mcp auth`.",
+      "sensitive": true,
+      "required": false
+    }
+  }
+}

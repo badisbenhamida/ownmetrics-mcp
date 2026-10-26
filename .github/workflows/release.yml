@@ -1,8 +1,9 @@
 name: Release
 
 # Runs when a GitHub release is published (tag like v0.2.0): all CI checks, then build,
-# publish to PyPI with trusted publishing (no stored token), then list the new version in
-# the MCP Registry, authenticated as this GitHub repository (no stored token).
+# attach the Claude Desktop bundle (.mcpb), publish to PyPI with trusted publishing (no
+# stored token), then list the new version in the MCP Registry, authenticated as this
+# GitHub repository (no stored token).
 
 on:
   release:
@@ -32,6 +33,26 @@ jobs:
         with:
           name: dist
           path: dist/
+
+  bundle:
+    # The one-click Claude Desktop bundle (SPEC B1-B4): build, validate with the official
+    # mcpb tool, smoke-run it as Claude Desktop would, then attach it to this release.
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.13"
+          activate-environment: true
+      - run: uv pip install -e .
+      - run: python scripts/build_bundle.py --smoke
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" dist/*.mcpb --clobber
 
   pypi:
     needs: build

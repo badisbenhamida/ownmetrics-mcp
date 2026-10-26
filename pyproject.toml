@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ownmetrics-mcp"
-version = "0.2.0"
+version = "0.2.1"
 description = "Open-source MCP server that lets Claude and other AI apps answer questions about your own Garmin data, via Garmin's official Personal API. Unofficial; not affiliated with Garmin."
 readme = "README.md"
 license = "MIT"
