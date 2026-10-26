@@ -53,7 +53,7 @@ with or endorsed by Garmin.
 | --- | --- | --- | --- | --- |
 | T1 | `get_daily_overview` | One day: steps, distance, resting/min/max HR, stress, Body Battery, calories, intensity minutes, sleep score. | M2 | auto |
 | T2 | `get_sleep` | Per night in a range: duration, stages, score, Garmin's feedback, avg HR/respiration/stress. Each night is labelled `woke_up_on`, because Garmin dates a night by the morning it ends. | M2 | auto |
-| T3 | `get_hrv` | Per night in a range: last-night average, weekly average, 5-min high, status, baseline. | M2 | auto |
+| T3 | `get_hrv` | Per night in a range: last-night average, weekly average, 5-min high, status, baseline. Each night is labelled `woke_up_on`, as in T2. | M2 | auto |
 | T4 | `get_stress_and_body_battery` | Per day in a range: stress level and time per stress band; Body Battery high/low/charged/drained. | M2 | auto |
 | T5 | `get_heart_rate` | One day: resting, min, max, 7-day resting average; the user's HR zones. | M2 | auto |
 | T6 | `list_activities` | Activities in a range, optional type filter, up to 100: id, name, type, start, duration, distance, avg HR, calories, training effect. | M2 | auto |
@@ -93,7 +93,7 @@ Metrics shared by I2 and I4: `sleep_score`, `sleep_hours`, `deep_sleep_minutes`,
 | R8 | A 403 on a data call means the key lacks permission for that data area: it is reported as "not allowed by your key's permissions" for that area, and the tool's other data is still returned. Only a sign-in rejection or a repeated 401 means the key is expired or deleted. | M2 | auto |
 | R9 | Tool calls may run concurrently; token handling and throttling are thread-safe. | M2 | auto |
 | R10 | Duplicate records for one day are resolved deterministically (the most complete record wins); activities are de-duplicated by id and listed newest first. | M2 | auto |
-| R11 | Activity figures fit the sport: pace (`pace_min_per_km`) only for running, walking and hiking types, speed (`avg_speed_kmh`) for other moving sports; sports without distance (e.g. strength, pilates, breathwork) report distance as "not applicable", never 0. | M3 | auto |
+| R11 | Activity figures fit the sport: pace (`pace_min_per_km`) only for running, walking and hiking types, speed (`avg_speed_kmh`) for other moving sports, neither for racket sports (tennis, pickleball and similar), which still report distance; sports without distance (e.g. strength, pilates, breathwork) report distance as "not applicable", never 0. | M3 | auto |
 | R12 | Insight tools accept ranges of up to 366 days, fetched within Garmin's per-endpoint limits (R2). | M3 | auto |
 
 ### 4.4 Acceptance criteria

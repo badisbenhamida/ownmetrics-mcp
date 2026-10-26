@@ -1,5 +1,6 @@
 """Constitution rules C2-C4 (SPEC section 2) checked against the code itself."""
 
+import ast
 import os
 import re
 from pathlib import Path
@@ -43,10 +44,21 @@ def test_tools_write_nothing_to_disk(tmp_path, monkeypatch):
 
 @req("C3")
 def test_no_database_or_cache_modules():
+    """Checks real imports and names, so words like 'pickleball' don't trip it."""
+    banned_modules = {"sqlite3", "shelve", "pickle", "dbm", "diskcache"}
     for path in SRC.rglob("*.py"):
-        source = path.read_text(encoding="utf-8")
-        for banned in ("sqlite3", "shelve", "pickle", "diskcache", "lru_cache"):
-            assert banned not in source, f"{banned} in {path.name}"
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                names = {a.name.split(".")[0] for a in node.names}
+            elif isinstance(node, ast.ImportFrom):
+                names = {(node.module or "").split(".")[0]} | {a.name for a in node.names}
+            elif isinstance(node, ast.Name | ast.Attribute):
+                names = {node.id if isinstance(node, ast.Name) else node.attr}
+            else:
+                continue
+            hits = names & (banned_modules | {"lru_cache", "cache"})
+            assert not hits, f"{hits} in {path.name}"
 
 
 @req("C4", "AC3")

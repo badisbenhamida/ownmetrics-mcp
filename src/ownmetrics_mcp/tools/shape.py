@@ -7,6 +7,7 @@ from typing import Any
 
 NOT_RECORDED = "not recorded"
 NOT_PROVIDED = "not provided by Garmin's Personal API"
+NOT_APPLICABLE = "not applicable"
 SOURCE = "Garmin Connect Personal API (unofficial client: ownmetrics-mcp)"
 DISCLAIMER = "Informational only, not medical advice."
 
@@ -96,4 +97,53 @@ def by_date(
         day = day[:10]
         if day not in out or score(item) > score(out[day]):
             out[day] = item
+    return out
+
+
+# -- R11: figures that fit the sport -------------------------------------------------------
+
+_PACE_WORDS = ("running", "walking", "hiking")
+_RACKET_WORDS = ("tennis", "pickleball", "padel", "squash", "badminton", "racquetball")
+NO_DISTANCE_TYPES = frozenset(
+    {
+        "strength_training",
+        "pilates",
+        "yoga",
+        "breathwork",
+        "meditation",
+        "hiit",
+        "indoor_cardio",
+        "cardio_training",
+        "floor_climbing",
+        "stretching",
+        "boxing",
+        "mobility",
+    }
+)
+
+
+def sport_kind(type_key: Any) -> str:
+    """'pace', 'speed', 'racket' (distance but no pace or speed) or 'no_distance'."""
+    key = type_key.lower() if isinstance(type_key, str) else ""
+    if key in NO_DISTANCE_TYPES:
+        return "no_distance"
+    if any(w in key for w in _PACE_WORDS):
+        return "pace"
+    if any(w in key for w in _RACKET_WORDS):
+        return "racket"
+    return "speed"
+
+
+def motion_fields(type_key: Any, distance_m: Any, speed_m_s: Any = None) -> dict[str, Any]:
+    """Distance plus pace or speed, as fits the sport (R11). With speed_m_s=None only distance."""
+    kind = sport_kind(type_key)
+    if kind == "no_distance":
+        return {"distance_km": NOT_APPLICABLE}
+    out: dict[str, Any] = {"distance_km": meters_to_km(distance_m)}
+    if speed_m_s is None:
+        return out
+    if kind == "pace":
+        out["avg_pace_min_per_km"] = pace_min_per_km(speed_m_s)
+    elif kind == "speed":
+        out["avg_speed_kmh"] = num(speed_m_s, scale=3.6)
     return out

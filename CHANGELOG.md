@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.0 — unreleased (Milestone 3)
+
+- Insight tools: `training_summary` (I1, by week or month), `compare_periods` (I2),
+  `recovery_correlations` (I3), `trend` (I4). Ranges up to 366 days (R12).
+- Sleep and HRV nights are labelled `woke_up_on` instead of `night_of`, because Garmin dates
+  a night by the morning it ends. **Breaking** for anyone reading the old field name.
+- Activity figures fit the sport (R11): pace for running, walking and hiking; speed for other
+  moving sports; neither for racket sports; distance "not applicable" for strength, pilates
+  and similar instead of 0.
+- Tests: a deterministic throttle test (the old one could fail on slow Windows runners);
+  the no-cache rule checks imports, not words; every known limitation has a test (AC9).
+
 ## 0.1.0 — unreleased (Milestone 2)
 
 - Data tools T1–T9: daily overview, sleep, HRV, stress and Body Battery, heart rate and

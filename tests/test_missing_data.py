@@ -57,8 +57,8 @@ def test_empty_days_are_labelled_not_dropped():
     src, _, _ = make_source(FakeClient(empty=True))
     nights = data.get_sleep(src, "2026-10-19", "2026-10-20")["nights"]
     assert nights == [
-        {"night_of": "2026-10-19", "status": "no data recorded"},
-        {"night_of": "2026-10-20", "status": "no data recorded"},
+        {"woke_up_on": "2026-10-19", "status": "no data recorded"},
+        {"woke_up_on": "2026-10-20", "status": "no data recorded"},
     ]
 
 
