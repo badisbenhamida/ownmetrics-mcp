@@ -1,6 +1,6 @@
 # ownmetrics-mcp — Specification
 
-Status: v0.1 (Milestone 2). Owner: Badis Ben Hamida.
+Status: v0.2 draft (Milestone 3). Owner: Badis Ben Hamida.
 This file is the source of truth. Code and tests trace back to the requirement IDs below;
 `scripts/traceability.py` checks the link in CI and writes `TRACEABILITY.md`.
 
@@ -52,7 +52,7 @@ with or endorsed by Garmin.
 | ID | Tool | Requirement | Milestone | Verify |
 | --- | --- | --- | --- | --- |
 | T1 | `get_daily_overview` | One day: steps, distance, resting/min/max HR, stress, Body Battery, calories, intensity minutes, sleep score. | M2 | auto |
-| T2 | `get_sleep` | Per night in a range: duration, stages, score, Garmin's feedback, avg HR/respiration/stress. | M2 | auto |
+| T2 | `get_sleep` | Per night in a range: duration, stages, score, Garmin's feedback, avg HR/respiration/stress. Each night is labelled `woke_up_on`, because Garmin dates a night by the morning it ends. | M2 | auto |
 | T3 | `get_hrv` | Per night in a range: last-night average, weekly average, 5-min high, status, baseline. | M2 | auto |
 | T4 | `get_stress_and_body_battery` | Per day in a range: stress level and time per stress band; Body Battery high/low/charged/drained. | M2 | auto |
 | T5 | `get_heart_rate` | One day: resting, min, max, 7-day resting average; the user's HR zones. | M2 | auto |
@@ -63,19 +63,27 @@ with or endorsed by Garmin.
 
 ### 4.2 Insight tools (Milestone 3)
 
+Insight tools do the fetching and the arithmetic inside the server, so one call answers a
+question that would otherwise take many data-tool calls plus manual math. They accept ranges
+of up to 366 days (R12). Every average reports how many days or nights it is based on.
+
+Metrics shared by I2 and I4: `sleep_score`, `sleep_hours`, `deep_sleep_minutes`,
+`hrv_ms` (last-night average), `resting_hr_bpm`, `stress_avg`, `body_battery_high`,
+`steps`, `training_hours`, `training_sessions`.
+
 | ID | Tool | Requirement | Milestone | Verify |
 | --- | --- | --- | --- | --- |
-| I1 | `weekly_training_summary` | Per week (1–12 weeks): sessions, time, distance by sport, time in HR zones. | M3 | auto |
-| I2 | `compare_periods` | Average, change and % change of one metric between two periods. | M3 | auto |
-| I3 | `recovery_correlations` | Correlations of sleep, HRV, Body Battery and next-day training, with sample size and caveat. | M3 | auto |
-| I4 | `analyze_fit_file` | From the complete FIT file by activity ID: pace, power and HR zones, laps, training effect, load, running dynamics (documented fields only). | M3 | auto |
-| I5 | `trend` | Daily series, 7-day rolling average and direction for one metric. | M3 | auto |
+| I1 | `training_summary` | Training totals for a range, grouped by `week` (Monday start) or `month`: sessions, hours, hours per week, evening sessions (starting 18:00 or later, local time), average aerobic training effect, and a per-sport breakdown (sessions, hours, distance where the sport has one). Periods cut by the range are marked partial with their day count. | M3 | auto |
+| I2 | `compare_periods` | Two date ranges side by side for the shared metrics (all, or a chosen subset): average for each period, change and % change, and the number of days with data on each side. A metric with no data on one side is "not recorded", never zero. | M3 | auto |
+| I3 | `recovery_correlations` | Night-by-night link between each day's training (hours, summed aerobic training effect, evening session yes/no) and what follows: that night's sleep score and hours (the record whose `woke_up_on` is the next day) and the next morning's HRV. Reports the correlation (Pearson r), sample size and a plain strength label (none < 0.1, weak < 0.3, moderate < 0.5, strong), plus averages for training days vs rest days and evening vs earlier sessions. Needs at least 14 paired days, otherwise says "not enough data". Always states that correlation does not show cause. | M3 | auto |
+| I4 | `trend` | One shared metric over a range, grouped by `day`, `week` or `month`: the series (with a 7-day rolling average for daily grouping), the change per 30 days from a least-squares fit, and a direction of up, down or flat (flat when the fitted change over the whole range is under 2% of the average). | M3 | auto |
+| I5 | `analyze_fit_file` | From the complete FIT file by activity ID: laps, HR zones over time, splits, training effect, running dynamics (documented fields only). Deferred to a later release; needs a FIT-reading dependency. | v0.2 | auto |
 
 ### 4.3 Cross-cutting rules
 
 | ID | Requirement | Milestone | Verify |
 | --- | --- | --- | --- |
-| R1 | Dates are exactly `YYYY-MM-DD`; ranges are inclusive, end ≥ start, at most 90 days per tool call. | M2 | auto |
+| R1 | Dates are exactly `YYYY-MM-DD`; ranges are inclusive, end ≥ start, at most 90 days per data-tool call (insight tools: R12). | M2 | auto |
 | R2 | Requests are split into windows within Garmin's per-endpoint range limits (section 3). | M2 | auto |
 | R3 | Requests are throttled; HTTP 429 gets backoff, then a clear "Garmin is limiting requests" error. | M2 | auto |
 | R4 | A 401 on a data call triggers one token refresh and retry before failing. | M2 | auto |
@@ -85,6 +93,8 @@ with or endorsed by Garmin.
 | R8 | A 403 on a data call means the key lacks permission for that data area: it is reported as "not allowed by your key's permissions" for that area, and the tool's other data is still returned. Only a sign-in rejection or a repeated 401 means the key is expired or deleted. | M2 | auto |
 | R9 | Tool calls may run concurrently; token handling and throttling are thread-safe. | M2 | auto |
 | R10 | Duplicate records for one day are resolved deterministically (the most complete record wins); activities are de-duplicated by id and listed newest first. | M2 | auto |
+| R11 | Activity figures fit the sport: pace (`pace_min_per_km`) only for running, walking and hiking types, speed (`avg_speed_kmh`) for other moving sports; sports without distance (e.g. strength, pilates, breathwork) report distance as "not applicable", never 0. | M3 | auto |
+| R12 | Insight tools accept ranges of up to 366 days, fetched within Garmin's per-endpoint limits (R2). | M3 | auto |
 
 ### 4.4 Acceptance criteria
 
@@ -96,7 +106,7 @@ with or endorsed by Garmin.
 | AC4 | Insight math is correct on hand-calculated fixtures. | M3 | auto |
 | AC5 | The API key never appears in output, logs or errors (canary-key test). | M2 | auto |
 | AC6 | An expired or revoked key gives a clear fix-it message. | M2 | auto |
-| AC7 | FIT analysis reads only the requested activity's file, never local paths. | M3 | auto |
+| AC7 | FIT analysis reads only the requested activity's file, never local paths. | v0.2 | auto |
 | AC8 | Works in at least three MCP clients. | M3 | manual |
 | AC9 | Every known limitation has a test proving the documented behavior. | M3 | auto |
 
@@ -119,5 +129,6 @@ with or endorsed by Garmin.
 | M0 | Spec | Approved by Badis (Oct 25, 2026). |
 | M1 | API verification | Limitations verified with live checks (Oct 25, 2026). |
 | M2 | Auth, data tools T1–T9, CI, governance docs | AC2, AC3, AC5, AC6 pass; Badis reviews the repo. |
-| M3 | Insight tools, docs set, release | All acceptance criteria pass; Badis tests on his own data. |
+| M3 | Fixes from real use (T2 `woke_up_on`, R11), insight tools I1–I4, docs set, release (.mcpb bundle, PyPI, MCP registry) | All M3 acceptance criteria pass; Badis tests on his own data. |
+| v0.2 | FIT-file analysis (I5, AC7) | Spec reviewed again before work starts. |
 | M4 | Launch content | Badis approves each piece before publication. |
