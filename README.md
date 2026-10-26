@@ -8,8 +8,8 @@ stress, Body Battery, heart rate, activities and more. It uses Garmin's official
 > "Garmin" and "Garmin Connect" are trademarks of Garmin Ltd. or its subsidiaries.
 > Results are informational, not medical advice.
 
-**Status: v0.1 (preview).** The nine data tools below work today. Insight tools (weekly
-training summary, period comparisons, trends, FIT analysis) are next.
+**Status: v0.2 (preview).** Nine data tools and four insight tools (training summaries,
+period comparisons, trends, training vs sleep). FIT-file analysis is next.
 
 ## What you can ask
 
@@ -49,7 +49,7 @@ uv runs Python tools without any manual setup.
 ### 3. Save the key
 
 ```bash
-uvx --from git+https://github.com/badisbenhamida/ownmetrics-mcp ownmetrics-mcp auth
+uvx ownmetrics-mcp auth
 ```
 
 Paste the key when asked (it stays hidden). It is checked with Garmin, then saved to
@@ -66,7 +66,7 @@ Windows account.
   "mcpServers": {
     "ownmetrics": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/badisbenhamida/ownmetrics-mcp", "ownmetrics-mcp"]
+      "args": ["ownmetrics-mcp"]
     }
   }
 }
@@ -77,10 +77,15 @@ Restart Claude Desktop.
 **Claude Code:**
 
 ```bash
-claude mcp add ownmetrics -- uvx --from git+https://github.com/badisbenhamida/ownmetrics-mcp ownmetrics-mcp
+claude mcp add ownmetrics -- uvx ownmetrics-mcp
 ```
 
-**Other apps:** use command `uvx` with the same arguments as above.
+**Other apps:** use command `uvx` with the argument `ownmetrics-mcp`.
+
+### Updating
+
+uvx keeps the version it first downloaded. To move to the latest release, run
+`uvx ownmetrics-mcp@latest --version`, then restart your AI app.
 
 Then ask: *"Check my Garmin connection, then summarize my sleep and HRV for the last week."*
 
@@ -142,7 +147,7 @@ be shared.
 - **The AI app doesn't see the tools:** restart the app fully. On macOS, if `uvx` isn't
   found, use its full path (run `which uvx` in Terminal) as the `command`.
 - **Check the connection yourself:**
-  `uvx --from git+https://github.com/badisbenhamida/ownmetrics-mcp ownmetrics-mcp status`
+  `uvx ownmetrics-mcp status`
 
 ## How it's built
 
@@ -158,3 +163,5 @@ and the [Model Context Protocol](https://modelcontextprotocol.io) Python SDK.
 ## License
 
 [MIT](LICENSE)
+
+<!-- MCP Registry ownership check; keep this line. mcp-name: io.github.badisbenhamida/ownmetrics-mcp -->
