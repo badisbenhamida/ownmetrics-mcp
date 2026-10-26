@@ -2,6 +2,8 @@
 
 ## 0.2.0 — unreleased (Milestone 3)
 
+- Install from PyPI: `uvx ownmetrics-mcp` (README updated). Releases publish to PyPI and the
+  MCP Registry from GitHub Actions, with no stored tokens.
 - Insight tools: `training_summary` (I1, by week or month), `compare_periods` (I2),
   `recovery_correlations` (I3), `trend` (I4). Ranges up to 366 days (R12).
 - `recovery_correlations` can focus on one sport (e.g. `tennis`); days with only other

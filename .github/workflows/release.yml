@@ -1,0 +1,71 @@
+name: Release
+
+# Runs when a GitHub release is published (tag like v0.2.0): all CI checks, then build,
+# publish to PyPI with trusted publishing (no stored token), then list the new version in
+# the MCP Registry, authenticated as this GitHub repository (no stored token).
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    uses: ./.github/workflows/ci.yml
+
+  build:
+    needs: checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+      - name: Release tag matches the package and registry versions
+        run: |
+          v=$(grep -m1 '^version = ' pyproject.toml | cut -d'"' -f2)
+          test "v$v" = "$GITHUB_REF_NAME" || { echo "Tag $GITHUB_REF_NAME but pyproject says $v"; exit 1; }
+          python3 -c "import json,sys; d=json.load(open('server.json')); \
+            sys.exit(0 if d['version']==d['packages'][0]['version']=='$v' else 'server.json version mismatch')"
+      - run: uv build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  pypi:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/ownmetrics-mcp
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  registry:
+    needs: pypi
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install mcp-publisher
+        run: |
+          curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" \
+            | tar xz mcp-publisher
+      - name: Sign in as this GitHub repository
+        run: ./mcp-publisher login github-oidc
+      - name: Publish (retries while PyPI makes the new version visible)
+        run: |
+          for i in 1 2 3 4 5; do
+            ./mcp-publisher publish && exit 0
+            echo "Attempt $i failed; retrying in 30 s"; sleep 30
+          done
+          exit 1

@@ -38,3 +38,21 @@ def test_every_known_limitation_has_a_test():
     reqs, tests = module.parse_spec(), module.collect_tests()
     limitations = {rid for rid in reqs if rid.startswith("L")}
     assert limitations and limitations <= set(tests), limitations - set(tests)
+
+
+def test_release_metadata_agrees():
+    """The release workflow refuses a tag that disagrees; this catches it before tagging."""
+    import json
+    import tomllib
+
+    from ownmetrics_mcp import __version__
+
+    root = SCRIPT.parent.parent
+    project = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    server = json.loads((root / "server.json").read_text(encoding="utf-8"))
+    assert project["version"] == __version__ == server["version"]
+    assert server["packages"][0]["version"] == __version__
+    assert server["packages"][0]["identifier"] == project["name"]
+    readme = (root / "README.md").read_text(encoding="utf-8")
+    assert f"mcp-name: {server['name']}" in readme
+    assert len(server["description"]) <= 100
