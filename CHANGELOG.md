@@ -4,6 +4,8 @@
 
 - Insight tools: `training_summary` (I1, by week or month), `compare_periods` (I2),
   `recovery_correlations` (I3), `trend` (I4). Ranges up to 366 days (R12).
+- `recovery_correlations` can focus on one sport (e.g. `tennis`); days with only other
+  training are left out. Clearer labels: `next_sleep_hours`, "lower HRV".
 - Sleep and HRV nights are labelled `woke_up_on` instead of `night_of`, because Garmin dates
   a night by the morning it ends. **Breaking** for anyone reading the old field name.
 - Activity figures fit the sport (R11): pace for running, walking and hiking; speed for other

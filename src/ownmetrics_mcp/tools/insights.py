@@ -369,12 +369,21 @@ def strength(r: float) -> str:
     return "strong"
 
 
-OUTCOMES = {"sleep_score": "_0_100", "sleep_hours": "_hours", "hrv_ms": "_ms"}
+OUTCOMES = ("sleep_score", "sleep_hours", "hrv_ms")
 OUTCOME_DIGITS = {"sleep_score": 1, "sleep_hours": 2, "hrv_ms": 1}
+# outcome -> (average field, count field, words for sentences)
+OUTCOME_LABELS = {
+    "sleep_score": ("next_sleep_score_0_100", "nights_with_sleep_score", "sleep score"),
+    "sleep_hours": ("next_sleep_hours", "nights_with_sleep_hours", "sleep hours"),
+    "hrv_ms": ("next_hrv_ms", "nights_with_hrv", "HRV"),
+}
 
 
-def recovery_correlations(src: GarminSource, start: str, end: str) -> dict[str, Any]:
+def recovery_correlations(
+    src: GarminSource, start: str, end: str, activity_type: str | None = None
+) -> dict[str, Any]:
     first, last = parse_range(start, end, MAX_INSIGHT_RANGE_DAYS)
+    sport = activity_type.strip().lower() if activity_type and activity_type.strip() else None
     # The night after day D ends on D+1, so outcomes are read one day later.
     outcomes, _ = _daily_values(
         src,
@@ -382,8 +391,15 @@ def recovery_correlations(src: GarminSource, start: str, end: str) -> dict[str, 
         first + timedelta(days=1),
         last + timedelta(days=1),
     )
-    acts, truncated = _activities(src, first, last)
-    days = [first + timedelta(days=i) for i in range((last - first).days + 1)]
+    all_acts, truncated = _activities(src, first, last)
+    all_days = [first + timedelta(days=i) for i in range((last - first).days + 1)]
+    if sport:
+        acts = [a for a in all_acts if sport in a.type_key.lower()]
+        sport_days = {a.day for a in acts}
+        other_only = {a.day for a in all_acts} - sport_days
+        days = [d for d in all_days if d not in other_only]
+    else:
+        acts, other_only, days = all_acts, set(), all_days
     hours = dict.fromkeys(days, 0.0)
     te = dict.fromkeys(days, 0.0)
     evening = dict.fromkeys(days, False)
@@ -422,23 +438,22 @@ def recovery_correlations(src: GarminSource, start: str, end: str) -> dict[str, 
                 row["direction"] = (
                     "no clear direction"
                     if strength(r) == "none"
-                    else f"more training goes with {'higher' if r > 0 else 'lower'} "
-                    f"{o_name.replace('_', ' ')}"
+                    else f"more {sport + ' ' if sport else ''}training goes with "
+                    f"{'higher' if r > 0 else 'lower'} {OUTCOME_LABELS[o_name][2]}"
                 )
             correlations.append(row)
 
     def group(selected: list[date]) -> dict[str, Any]:
         out: dict[str, Any] = {"days": len(selected)}
-        for o_name, suffix in OUTCOMES.items():
+        for o_name in OUTCOMES:
+            avg_field, count_field, _ = OUTCOME_LABELS[o_name]
             vals = [
                 outcomes[o_name][d + timedelta(days=1)]
                 for d in selected
                 if d + timedelta(days=1) in outcomes[o_name]
             ]
-            out[f"next_{o_name.removesuffix('_ms')}{suffix}"] = _rnd(
-                sum(vals) / len(vals) if vals else None, OUTCOME_DIGITS[o_name]
-            )
-            out[f"nights_with_{o_name.removesuffix('_ms')}"] = len(vals)
+            out[avg_field] = _rnd(sum(vals) / len(vals) if vals else None, OUTCOME_DIGITS[o_name])
+            out[count_field] = len(vals)
         return out
 
     trained = [d for d in days if hours[d] > 0]
@@ -457,9 +472,21 @@ def recovery_correlations(src: GarminSource, start: str, end: str) -> dict[str, 
         },
         "evening_means": f"a session starting at {EVENING_HOUR}:00 or later, local time",
     }
+    if sport:
+        data["sport_filter"] = {
+            "matches": sport,
+            "types_counted": sorted({a.type_key for a in acts}) or "no matching activities",
+            "days_left_out_other_training": len(other_only),
+        }
     if truncated:
         data["warning"] = f"Only the first {MAX_INSIGHT_ACTIVITIES} activities were counted."
-    return envelope("recovery_correlations", data, start=first.isoformat(), end=last.isoformat())
+    return envelope(
+        "recovery_correlations",
+        data,
+        start=first.isoformat(),
+        end=last.isoformat(),
+        activity_type=sport or "all",
+    )
 
 
 # -- I4 ------------------------------------------------------------------------------------

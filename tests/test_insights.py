@@ -223,7 +223,7 @@ def test_recovery_correlations_pairs_each_day_with_the_night_after():
     rows = {(r["training"], r["outcome"]): r for r in out["correlations"]}
     score = rows[("training_hours", "sleep_score")]
     assert score["paired_days"] == 20 and score["correlation_r"] == 1.0
-    assert score["strength"] == "strong" and "higher sleep score" in score["direction"]
+    assert score["direction"] == "more training goes with higher sleep score"
     assert rows[("training_hours", "sleep_hours")]["status"] == "not enough variation to measure"
     assert rows[("training_hours", "hrv_ms")]["status"].startswith("not enough data")
     g = out["groups"]
@@ -232,6 +232,7 @@ def test_recovery_correlations_pairs_each_day_with_the_night_after():
     assert g["evening_session_days"]["days"] == 3
     assert g["earlier_session_days"]["days"] == 7
     assert g["rest_days"]["next_hrv_ms"] == NOT_RECORDED
+    assert g["training_days"]["next_sleep_hours"] == 7.5  # one unit suffix, not two
     assert "not that one causes the other" in out["how_to_read"]
 
 
@@ -405,3 +406,28 @@ def test_out_of_scope_areas_have_no_tools_and_are_explained():
     src, _, _ = make_source()
     explained = data.get_account_status(src)["not_provided_by_garmin"]
     assert {"gear", "devices"} <= set(explained)
+
+
+@req("I3")
+def test_recovery_correlations_can_focus_on_one_sport():
+    acts, sleep = _alternating("2026-03-01", 20)  # tennis on even days
+    acts.append(act("2026-03-02", "08:00", "road_biking", 60, 20000))  # a cycling-only day
+    acts.append(act("2026-03-04", "19:00", "road_biking", 45, 15000))  # also tennis-free
+    src, _, _ = make_source(Scripted(acts, sleep=sleep))
+    out = insights.recovery_correlations(src, "2026-03-01", "2026-03-20", "Tennis")
+    assert out["activity_type"] == "tennis"
+    assert out["sport_filter"] == {
+        "matches": "tennis",
+        "types_counted": ["tennis_v2"],
+        "days_left_out_other_training": 2,
+    }
+    g = out["groups"]
+    assert g["training_days"]["days"] == 10 and g["rest_days"]["days"] == 8
+    rows = {(r["training"], r["outcome"]): r for r in out["correlations"]}
+    assert rows[("training_hours", "sleep_score")]["paired_days"] == 18
+    assert (
+        "more tennis training goes with higher sleep score"
+        in (rows[("training_hours", "sleep_score")]["direction"])
+    )
+    hrv = insights.recovery_correlations(src, "2026-03-01", "2026-03-20", "rowing")
+    assert hrv["sport_filter"]["types_counted"] == "no matching activities"
