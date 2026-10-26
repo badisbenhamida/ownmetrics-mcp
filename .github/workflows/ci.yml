@@ -37,6 +37,9 @@ jobs:
         run: python scripts/traceability.py --check
 
   secrets:
+    # gitleaks-action does not support release events. Every commit is already scanned on
+    # its pull request and on main, so the release run skips this job.
+    if: github.event_name != 'release'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
