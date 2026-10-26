@@ -238,11 +238,22 @@ def build_server(source_factory: Callable[[], GarminSource] = GarminSource) -> M
             "I3. Does training go with better or worse sleep and HRV? Over up to 366 days, pairs "
             "each day's training with the night after it: correlations with sample size and "
             "strength, plus averages for training vs rest days and evening vs earlier sessions. "
+            "Can focus on one sport. "
             "Correlation is not cause; say so when answering." + NOTE
         ),
     )
-    def recovery_correlations(start: Start, end: LongEnd) -> dict[str, Any]:
-        return run(insights.recovery_correlations, start, end)
+    def recovery_correlations(
+        start: Start,
+        end: LongEnd,
+        activity_type: Annotated[
+            str | None,
+            Field(
+                description="Optional sport to look at on its own, matched by name "
+                "(e.g. 'tennis', 'running', 'cycling'). Days with only other sports are left out."
+            ),
+        ] = None,
+    ) -> dict[str, Any]:
+        return run(insights.recovery_correlations, start, end, activity_type)
 
     @server.tool(
         annotations=READ_ONLY,
