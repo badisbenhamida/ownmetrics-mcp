@@ -107,7 +107,7 @@ def test_activity_detail():
     assert a["avg_speed_kmh"] == 12.0
     assert a["normalized_power_w"] == 262 and a["training_load"] == 118
     assert out["splits"][0]["avg_pace_min_per_km"] == "5:00"
-    assert out["workouts"] == [{"name": "Tempo 2x5k", "sport": "RUNNING", "steps": 3}]
+    assert out["workouts"] == [{"name": "Tempo 2x5k", "sport": "RUNNING", "workout_step_count": 3}]
 
 
 @req("T7")
@@ -125,7 +125,10 @@ def test_body_metrics():
     w = out["weight_entries"][0]
     assert w["weight_kg"] == 78.4 and w["bmi"] == 24.1 and w["body_fat_percent"] == 18.2
     # days with 0 ml logged are not shown as "0 ml drunk"
-    assert [h["date"] for h in out["hydration"]] == ["2026-10-21"]
+    assert out["hydration"] == [
+        {"date": "2026-10-20", "status": "no hydration logged"},
+        {"date": "2026-10-21", "intake_ml": 1800, "goal_ml": 2500},
+    ]
     assert out["spo2"]["avg_spo2_percent"] == 96
     assert out["fitness_age"]["fitness_age_years"] == 44.3
 
@@ -144,7 +147,7 @@ def test_account_status_connected():
 def test_account_status_warns_in_keys_final_day():
     src, _, _ = make_source(auth=FakeAuthenticator(lifetime_h=5))
     out = data.get_account_status(src, today=date(2026, 10, 25))
-    assert "expires within the next day" in out["key_expiry"]
+    assert "expires within about a day" in out["key_expiry"]
 
 
 @req("T9", "AC6")
@@ -205,6 +208,7 @@ UNITLESS = {
     "training_load",
     "bmi",
     "body_battery_charged",
+    "workout_step_count",
     "body_battery_drained",
 }
 

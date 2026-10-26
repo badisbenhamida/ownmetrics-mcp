@@ -13,11 +13,13 @@ from ownmetrics_mcp.errors import (
     GarminUnavailableError,
     InvalidInputError,
     NoKeyError,
+    NotPermittedError,
     NotProvidedError,
     OwnMetricsError,
     RateLimitedError,
 )
 from ownmetrics_mcp.garmin import GarminSource
+from ownmetrics_mcp.redact import redact
 from ownmetrics_mcp.tools.shape import (
     NOT_PROVIDED,
     NOT_RECORDED,
@@ -35,6 +37,7 @@ from ownmetrics_mcp.tools.shape import (
 
 MAX_ACTIVITIES = 100
 NO_DAY = {"status": "no data recorded"}
+NOT_PERMITTED = "not allowed by your Personal API key's permissions"
 
 
 def _days(first: date, last: date) -> list[str]:
@@ -50,8 +53,17 @@ def _optional[T](fn: Callable[[], T]) -> T | dict[str, str]:
         raise
     except NotProvidedError:
         return {"status": NOT_PROVIDED}
+    except NotPermittedError:
+        return {"status": NOT_PERMITTED}
     except GarminUnavailableError as exc:
-        return {"status": "unavailable", "detail": str(exc)}
+        return {"status": "unavailable", "detail": redact(str(exc))}
+
+
+def _sleep_seconds(record: Any) -> float | None:
+    value = get(record, "sleepTimeSeconds")
+    if isinstance(value, int | float) and not isinstance(value, bool) and value > 0:
+        return float(value)
+    return None
 
 
 def _is_status(obj: Any) -> bool:
@@ -93,8 +105,10 @@ def get_daily_overview(src: GarminSource, day: str) -> dict[str, Any]:
         }
     if _is_status(sleep_dto):
         overview["sleep"] = sleep_dto
+    elif _sleep_seconds(sleep_dto) is None:
+        overview["sleep"] = dict(NO_DAY)
     else:
-        overview["sleep_hours"] = seconds_to_hours(get(sleep_dto, "sleepTimeSeconds"))
+        overview["sleep_hours"] = seconds_to_hours(_sleep_seconds(sleep_dto))
         overview["sleep_score_0_100"] = num(
             get(sleep_dto, "sleepScores", "overall", "value"), digits=0
         )
@@ -106,12 +120,12 @@ def get_daily_overview(src: GarminSource, day: str) -> dict[str, Any]:
 
 def get_sleep(src: GarminSource, start: str, end: str) -> dict[str, Any]:
     first, last = parse_range(start, end)
-    nights = by_date(src.sleep_summaries(first, last))
+    records = [get(r, "dailySleepDTO") or r for r in src.sleep_summaries(first, last)]
+    nights = by_date(records, prefer=lambda r: _sleep_seconds(r) or 0)
     rows = []
     for day in _days(first, last):
         n = nights.get(day)
-        n = get(n, "dailySleepDTO") or n
-        if n is None or not isinstance(get(n, "sleepTimeSeconds"), int | float):
+        if n is None or _sleep_seconds(n) is None:
             rows.append({"night_of": day, **NO_DAY})
             continue
         rows.append(
@@ -168,7 +182,9 @@ def _body_battery_range(report: Any) -> tuple[Any, Any]:
     index = 1
     for d in get(report, "bodyBatteryValueDescriptorList") or []:
         if get(d, "bodyBatteryValueDescriptorKey") == "bodyBatteryLevel":
-            index = get(d, "bodyBatteryValueDescriptorIndex") or 1
+            idx = d.get("bodyBatteryValueDescriptorIndex") if isinstance(d, dict) else None
+            if isinstance(idx, int) and not isinstance(idx, bool) and idx >= 0:
+                index = idx
     levels = [
         row[index]
         for row in get(report, "bodyBatteryValuesArray") or []
@@ -280,10 +296,15 @@ def list_activities(
     if not 1 <= limit <= MAX_ACTIVITIES:
         raise InvalidInputError(f"`limit` must be between 1 and {MAX_ACTIVITIES}.")
     kind = activity_type.strip() if activity_type and activity_type.strip() else None
-    rows = [_activity_row(a) for a in src.activities(first, last, kind, limit)]
-    data: dict[str, Any] = {"count": len(rows), "activities": rows}
-    if not rows:
-        data["status"] = "no activities recorded in this range"
+    rows = [
+        _activity_row(a)
+        for a in src.activities(first, last, kind, limit)
+        if isinstance(get(a, "activityId"), int)
+    ]
+    data: dict[str, Any] = {
+        "count": len(rows),
+        "activities": rows or {"status": "no activities recorded in this range"},
+    }
     return envelope(
         "list_activities",
         data,
@@ -299,7 +320,12 @@ def list_activities(
 def get_activity(src: GarminSource, activity_id: int) -> dict[str, Any]:
     if not isinstance(activity_id, int) or isinstance(activity_id, bool) or activity_id <= 0:
         raise InvalidInputError("`activity_id` must be a positive whole number.")
-    a = src.activity(activity_id)
+    try:
+        a = src.activity(activity_id)
+    except NotProvidedError:
+        raise InvalidInputError(
+            f"No activity with id {activity_id} was found. Use list_activities to find ids."
+        ) from None
     workouts_raw = _optional(lambda: src.activity_workouts(activity_id))
     s = get(a, "summaryDTO") or get(a, "summary") or {}
     detail = {
@@ -343,7 +369,9 @@ def get_activity(src: GarminSource, activity_id: int) -> dict[str, Any]:
             {
                 "name": text(get(w, "workoutName")),
                 "sport": text(get(w, "sport")),
-                "steps": len(get(w, "steps") or []),
+                "workout_step_count": len(w["steps"])
+                if isinstance(w, dict) and isinstance(w.get("steps"), list) and w["steps"]
+                else NOT_RECORDED,
             }
             for w in (workouts_raw if isinstance(workouts_raw, list) else [])
         ] or {"status": "no structured workout"}
@@ -376,21 +404,26 @@ def get_body_metrics(src: GarminSource, start: str, end: str) -> dict[str, Any]:
                     "body_water_percent": num(get(w, "bodyWater")),
                 }
             )
-    hydration = by_date(src.hydration(first, last))
-    water = [
-        {
-            "date": day,
-            "intake_ml": num(get(h, "valueInMl"), digits=0),
-            "goal_ml": num(get(h, "goalInMl"), digits=0),
-        }
-        for day, h in sorted(hydration.items())
-        if isinstance(get(h, "valueInMl"), int | float) and get(h, "valueInMl") > 0
-    ]
+    hydration = by_date(src.hydration(first, last), prefer=lambda h: get(h, "valueInMl") or 0)
+    water: list[dict[str, Any]] = []
+    for day in _days(first, last):
+        h = hydration.get(day)
+        intake = get(h, "valueInMl")
+        if isinstance(intake, int | float) and intake > 0:
+            water.append(
+                {
+                    "date": day,
+                    "intake_ml": num(intake, digits=0),
+                    "goal_ml": num(get(h, "goalInMl"), digits=0),
+                }
+            )
+        else:
+            water.append({"date": day, "status": "no hydration logged"})
     spo2 = _optional(lambda: src.spo2(last))
     fitness = _optional(lambda: src.fitness_age(last))
     data: dict[str, Any] = {
         "weight_entries": weights or {"status": "no weigh-ins recorded in this range"},
-        "hydration": water or {"status": "no hydration logged in this range"},
+        "hydration": water,
         "as_of": last.isoformat(),
         "spo2": spo2
         if _is_status(spo2)
@@ -416,50 +449,69 @@ def get_body_metrics(src: GarminSource, start: str, end: str) -> dict[str, Any]:
 
 # -- T9 ------------------------------------------------------------------------------------
 
-KEY_WARNING_HOURS = 23.0
+KEY_WARNING_HOURS = 23.0  # Garmin's tokens last 24 h; a fresh one shorter than this = key ends
+NOT_OFFERED = ["training readiness", "training status and load", "VO2 max", "gear", "devices"]
 
 
 def get_account_status(src: GarminSource, today: date | None = None) -> dict[str, Any]:
-    """Never raises for account problems: it explains them. Never exposes key or token."""
+    """Never raises for account problems: it explains them. Never exposes key or token (C5)."""
     today = today or date.today()
-    try:
-        token = src.token_status()
-    except OwnMetricsError as exc:
-        return envelope("get_account_status", {"connected": False, "problem": str(exc)})
+    week_ago = today - timedelta(days=7)
 
-    lifetime = token.get("token_issued_lifetime_hours")
-    expiring = isinstance(lifetime, int | float) and lifetime < KEY_WARNING_HOURS
-    probes = {
+    def not_connected(exc: OwnMetricsError) -> dict[str, Any]:
+        return envelope(
+            "get_account_status",
+            {
+                "connected": False,
+                "problem": redact(str(exc)),
+                "not_provided_by_garmin": NOT_OFFERED,
+            },
+        )
+
+    try:
+        token = src.token_status(fresh=True)  # cached tokens would hide the final-day warning
+    except OwnMetricsError as exc:
+        return not_connected(exc)
+
+    # One probe per data area that T1-T8 read.
+    probes: dict[str, Callable[[], Any]] = {
         "daily_summaries": lambda: src.daily_summaries(today, today),
-        "sleep": lambda: src.sleep_summaries(today - timedelta(days=1), today),
-        "hrv": lambda: src.hrv_summaries(today - timedelta(days=1), today),
+        "sleep": lambda: src.sleep_summaries(week_ago, today),
+        "hrv": lambda: src.hrv_summaries(week_ago, today),
+        "stress": lambda: src.stress(week_ago, today),
+        "body_battery": lambda: src.body_battery(week_ago, today),
+        "heart_rate": lambda: src.heart_rate(today),
+        "heart_rate_zones": src.heart_rate_zones,
         "activities": lambda: src.activities(today - timedelta(days=30), today, None, 1),
+        "weight": lambda: src.weight_days(week_ago, today),
+        "hydration": lambda: src.hydration(week_ago, today),
+        "spo2": lambda: src.spo2(today),
+        "fitness_age": lambda: src.fitness_age(today),
     }
     areas: dict[str, str] = {}
     for name, probe in probes.items():
         try:
             probe()
             areas[name] = "ok"
+        except (AuthError, NoKeyError) as exc:
+            return not_connected(exc)  # the key itself is rejected: say so, don't list areas
         except OwnMetricsError as exc:
-            areas[name] = str(exc)
+            areas[name] = redact(str(exc))
+
+    lifetime = token.get("token_issued_lifetime_hours")
+    expiring = isinstance(lifetime, int | float) and lifetime < KEY_WARNING_HOURS
     data: dict[str, Any] = {
         "connected": True,
-        "scopes": token.get("scopes", []),
+        "scopes": token.get("scopes") or NOT_RECORDED,
         "key_expiry": (
-            "Your Garmin Personal API key expires within the next day. Create a new key in "
+            "Your Garmin Personal API key expires within about a day. Create a new key in "
             "Garmin Connect and run `ownmetrics-mcp auth`."
             if expiring
             else "Not exposed by Garmin. Garmin emails a reminder about a week before "
             "your key expires."
         ),
         "data_areas": areas,
-        "not_provided_by_garmin": [
-            "training readiness",
-            "training status and load",
-            "VO2 max",
-            "gear",
-            "devices",
-        ],
+        "not_provided_by_garmin": NOT_OFFERED,
     }
     return envelope("get_account_status", data)
 

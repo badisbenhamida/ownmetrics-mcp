@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 NOT_RECORDED = "not recorded"
@@ -53,10 +54,6 @@ def seconds_to_minutes(value: Any) -> Any:
     return num(value, scale=1 / 60, digits=1)
 
 
-def ms_to_minutes(value: Any) -> Any:
-    return num(value, scale=1 / 60000, digits=1)
-
-
 def meters_to_km(value: Any) -> Any:
     return num(value, scale=1 / 1000, digits=2)
 
@@ -83,10 +80,20 @@ def envelope(tool: str, data: dict[str, Any], **extra: Any) -> dict[str, Any]:
     return {"tool": tool, **extra, **data, "source": SOURCE, "note": DISCLAIMER}
 
 
-def by_date(items: list[Json], key: str = "calendarDate") -> dict[str, Json]:
+def by_date(
+    items: list[Json],
+    key: str = "calendarDate",
+    prefer: Callable[[Json], float] | None = None,
+) -> dict[str, Json]:
+    """Index records by date. With duplicates for one day, keep the one `prefer` scores
+    highest (default: the record with the most fields), so the choice is deterministic (R10)."""
+    score = prefer or (lambda r: float(len(r)) if isinstance(r, dict) else 0.0)
     out: dict[str, Json] = {}
     for item in items:
         day = get(item, key)
-        if isinstance(day, str):
-            out[day[:10]] = item
+        if not isinstance(day, str):
+            continue
+        day = day[:10]
+        if day not in out or score(item) > score(out[day]):
+            out[day] = item
     return out

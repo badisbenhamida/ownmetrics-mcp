@@ -2,16 +2,21 @@
 
 from __future__ import annotations
 
+import re
 from datetime import date, timedelta
 
 from ownmetrics_mcp.errors import InvalidInputError
 
 MAX_TOOL_RANGE_DAYS = 90
+_ISO_DAY = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 
 def parse_day(value: str, field: str = "date") -> date:
     try:
-        return date.fromisoformat(value.strip())
+        cleaned = value.strip()
+        if not _ISO_DAY.fullmatch(cleaned):  # fromisoformat also accepts 20261025, 2026-W43-7
+            raise ValueError(cleaned)
+        return date.fromisoformat(cleaned)
     except (ValueError, AttributeError) as exc:
         raise InvalidInputError(
             f"`{field}` must be a date like 2026-10-25, got {value!r}."

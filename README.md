@@ -50,7 +50,9 @@ uvx --from git+https://github.com/badisbenhamida/ownmetrics-mcp ownmetrics-mcp a
 ```
 
 Paste the key when asked (it stays hidden). It is checked with Garmin, then saved to
-`~/.config/garmin/connect-personal-api-key`, readable only by you.
+`~/.config/garmin/connect-personal-api-key` in your home folder. On macOS and Linux the file
+is readable only by you; on Windows it sits in your user profile folder, protected by your
+Windows account.
 
 ### 4. Add it to your AI app
 
@@ -91,7 +93,7 @@ Then ask: *"Check my Garmin connection, then summarize my sleep and HRV for the 
 | `list_activities` | Activities in a date range, optionally by type, with duration, distance, heart rate |
 | `get_activity` | One activity: pace, speed, power, cadence, training effect and load, splits |
 | `get_body_metrics` | Weigh-ins, BMI, body fat, hydration; Pulse Ox and fitness age |
-| `get_account_status` | Whether your key works, a warning in its final day, which data areas respond |
+| `get_account_status` | Whether your key works, a warning in its final day, which of the data areas above respond |
 
 Every field name carries its unit (`resting_hr_bpm`, `distance_km`, `sleep_score_0_100`).
 Where Garmin has no value, the field says **"not recorded"**, never zero.
