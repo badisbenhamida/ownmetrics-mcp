@@ -282,7 +282,8 @@ def build_server(source_factory: Callable[[], GarminSource] = GarminSource) -> M
             "stress and Body Battery for the Monday-to-Sunday week containing week_of (default: "
             "this week so far), against the same days last week and the previous 28 days; best "
             "and worst nights; and highlights from fixed rules. Use for 'weekly review' or "
-            "'how was my week' questions." + NOTE
+            "'how was my week' questions. For a general weekly review, call it once with no "
+            "week_of; pass week_of only when the user names a week (e.g. 'last week')." + NOTE
         ),
     )
     def weekly_review(
