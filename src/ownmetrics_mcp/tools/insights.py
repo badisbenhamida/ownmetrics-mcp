@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any
 
-from ownmetrics_mcp.dates import MAX_INSIGHT_RANGE_DAYS, parse_range
+from ownmetrics_mcp.dates import MAX_INSIGHT_RANGE_DAYS, parse_day, parse_range
 from ownmetrics_mcp.errors import InvalidInputError
 from ownmetrics_mcp.garmin import GarminSource
 from ownmetrics_mcp.tools.shape import (
@@ -583,6 +583,198 @@ def trend(
     return envelope("trend", data, start=first.isoformat(), end=last.isoformat(), group_by=group_by)
 
 
+# -- I5 ------------------------------------------------------------------------------------
+
+RECOVERY = (
+    "sleep_score",
+    "sleep_hours",
+    "deep_sleep_minutes",
+    "hrv_ms",
+    "resting_hr_bpm",
+    "stress_avg",
+    "body_battery_high",
+)
+BASELINE_DAYS = 28
+HRV_FLAG_FRACTION = 0.10  # more than 10% from the 28-day average
+SLEEP_SCORE_FLAG_POINTS = 5.0  # more than 5 points from the 28-day average
+RESTING_HR_FLAG_BPM = 3.0  # more than 3 bpm from the 28-day average
+TRAINING_FLAG_FRACTION = 0.30  # more than 30% above or below the previous week
+MISSING_NIGHTS_FLAG = 2  # 2 or more nights with no sleep data
+
+
+def _mean(series: Series, first: date, last: date) -> tuple[float | None, int]:
+    values = [v for d, v in series.items() if first <= d <= last]
+    return (sum(values) / len(values) if values else None), len(values)
+
+
+def _span(first: date, last: date) -> dict[str, str]:
+    return {"first_day": first.isoformat(), "last_day": last.isoformat()}
+
+
+def weekly_review(
+    src: GarminSource, week_of: str | None = None, today: date | None = None
+) -> dict[str, Any]:
+    today = today or date.today()
+    anchor = parse_day(week_of, "week_of") if week_of else today
+    if anchor > today:
+        raise InvalidInputError("`week_of` can't be in the future.")
+    monday = anchor - timedelta(days=anchor.weekday())
+    last = min(monday + timedelta(days=6), today)
+    n_days = (last - monday).days + 1
+    prev_first = monday - timedelta(days=7)
+    prev_last = prev_first + timedelta(days=n_days - 1)  # the same weekdays, last week
+    base_first, base_last = monday - timedelta(days=BASELINE_DAYS), monday - timedelta(days=1)
+
+    series, _ = _daily_values(src, [METRICS[n] for n in RECOVERY], base_first, last)
+    acts, truncated = _activities(src, prev_first, last)
+    this_acts = [a for a in acts if monday <= a.day <= last]
+    prev_acts = [a for a in acts if prev_first <= a.day <= prev_last]
+
+    # Training: this week against the same days of the previous week.
+    this_t, prev_t = _training_block(this_acts, n_days), _training_block(prev_acts, n_days)
+    this_h = sum(a.minutes for a in this_acts) / 60
+    prev_h = sum(a.minutes for a in prev_acts) / 60
+    training = {
+        "this_week": this_t,
+        "previous_week": prev_t,
+        "change": {
+            "sessions": len(this_acts) - len(prev_acts),
+            "total_hours": round(this_h - prev_h, 1),
+            "total_hours_percent": round((this_h - prev_h) / prev_h * 100, 1)
+            if prev_h
+            else NOT_APPLICABLE,
+        },
+    }
+
+    # Recovery: this week, the same days last week, and the 28 days before this week.
+    recovery: dict[str, Any] = {}
+    means: dict[str, tuple[float | None, float | None]] = {}
+    for name in RECOVERY:
+        m = METRICS[name]
+        s = series[name]
+        t, t_n = _mean(s, monday, last)
+        p, p_n = _mean(s, prev_first, prev_last)
+        b, b_n = _mean(s, base_first, base_last)
+        means[name] = (t, b)
+        digits = max(m.digits, 1)
+        recovery[name] = {
+            "this_week": {f"average{m.period_suffix}": _rnd(t, m.digits), "days_with_data": t_n},
+            "previous_week": {
+                f"average{m.period_suffix}": _rnd(p, m.digits),
+                "days_with_data": p_n,
+            },
+            "previous_28_days": {
+                f"average{m.period_suffix}": _rnd(b, m.digits),
+                "days_with_data": b_n,
+            },
+            f"change_vs_previous_week{m.period_suffix}": _rnd(
+                t - p if t is not None and p is not None else None, digits
+            ),
+            f"difference_from_28_days{m.period_suffix}": _rnd(
+                t - b if t is not None and b is not None else None, digits
+            ),
+        }
+
+    # Nights in the week, dated by the morning they ended.
+    week_days = [monday + timedelta(days=i) for i in range(n_days)]
+    scores = [(d, v) for d, v in sorted(series["sleep_score"].items()) if monday <= d <= last]
+    missing = [d.isoformat() for d in week_days if d not in series["sleep_hours"]]
+
+    def night(d: date, v: float) -> dict[str, Any]:
+        return {
+            "woke_up_on": d.isoformat(),
+            "sleep_score_0_100": _rnd(v, 0),
+            "sleep_hours": _rnd(series["sleep_hours"].get(d), 2),
+        }
+
+    nights: dict[str, Any] = {
+        "best": night(*max(scores, key=lambda x: x[1])) if scores else NOT_RECORDED,
+        "worst": night(*min(scores, key=lambda x: x[1])) if scores else NOT_RECORDED,
+        "nights_without_data": missing or {"status": "none"},
+    }
+
+    # Highlights: fixed rules only, so the same data always gives the same flags.
+    highlights: list[dict[str, str]] = []
+
+    def side(diff: float) -> str:
+        return "above" if diff > 0 else "below"
+
+    t, b = means["hrv_ms"]
+    if t is not None and b and abs(t - b) / b > HRV_FLAG_FRACTION:
+        pct = abs(t - b) / b * 100
+        highlights.append(
+            {
+                "rule": "hrv_vs_28_days",
+                "text": f"HRV averaged {t:.0f} ms this week, {pct:.0f}% {side(t - b)} "
+                f"your 28-day average of {b:.0f} ms.",
+            }
+        )
+    t, b = means["sleep_score"]
+    if t is not None and b is not None and abs(t - b) > SLEEP_SCORE_FLAG_POINTS:
+        highlights.append(
+            {
+                "rule": "sleep_score_vs_28_days",
+                "text": f"Sleep score averaged {t:.1f} this week, {abs(t - b):.1f} points "
+                f"{side(t - b)} your 28-day average of {b:.1f}.",
+            }
+        )
+    t, b = means["resting_hr_bpm"]
+    if t is not None and b is not None and abs(t - b) > RESTING_HR_FLAG_BPM:
+        highlights.append(
+            {
+                "rule": "resting_hr_vs_28_days",
+                "text": f"Resting heart rate averaged {t:.1f} bpm this week, {abs(t - b):.1f} bpm "
+                f"{side(t - b)} your 28-day average of {b:.1f} bpm.",
+            }
+        )
+    if prev_h and abs(this_h - prev_h) / prev_h > TRAINING_FLAG_FRACTION:
+        pct = abs(this_h - prev_h) / prev_h * 100
+        highlights.append(
+            {
+                "rule": "training_vs_previous_week",
+                "text": f"Training time was {this_h:.1f} h, {pct:.0f}% "
+                f"{'more' if this_h > prev_h else 'less'} than the same days last week "
+                f"({prev_h:.1f} h).",
+            }
+        )
+    elif not prev_h and this_h:
+        highlights.append(
+            {
+                "rule": "training_vs_previous_week",
+                "text": f"Training time was {this_h:.1f} h, after none on the same days last week.",
+            }
+        )
+    if len(missing) >= MISSING_NIGHTS_FLAG:
+        highlights.append(
+            {
+                "rule": "missing_nights",
+                "text": f"{len(missing)} nights this week have no sleep data.",
+            }
+        )
+
+    data: dict[str, Any] = {
+        "week": {**_span(monday, last), "complete": last == monday + timedelta(days=6)},
+        "compared_with": {
+            "previous_week_same_days": _span(prev_first, prev_last),
+            "previous_28_days": _span(base_first, base_last),
+        },
+        "how_to_read": (
+            "A week still in progress is compared with the same weekdays of the previous "
+            "week. Sleep and HRV belong to the morning the night ended. Highlights follow "
+            "fixed rules: HRV more than 10% from its 28-day average, sleep score more than "
+            "5 points, resting heart rate more than 3 bpm, training time more than 30% "
+            "above or below the previous week, and 2 or more nights without sleep data."
+        ),
+        "training": training,
+        "recovery": recovery,
+        "nights": nights,
+        "highlights": highlights or {"status": "nothing outside the set thresholds"},
+    }
+    if truncated:
+        data["warning"] = f"Only the first {MAX_INSIGHT_ACTIVITIES} activities were counted."
+    return envelope("weekly_review", data)
+
+
 __all__ = [
     "METRICS",
     "compare_periods",
@@ -592,4 +784,5 @@ __all__ = [
     "strength",
     "training_summary",
     "trend",
+    "weekly_review",
 ]

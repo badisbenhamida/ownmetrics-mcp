@@ -27,8 +27,10 @@ NOTE = (
 INSTRUCTIONS = (
     "Tools for the user's own Garmin data, read through Garmin's official Personal API. "
     "All tools are read-only. Dates are YYYY-MM-DD; ranges are inclusive, at most 90 days for "
-    "data tools (T1-T9) and 366 days for insight tools (I1-I4). Prefer an insight tool for "
-    "questions about totals, comparisons, trends or links between training and sleep: it does "
+    "data tools (T1-T9) and 366 days for insight tools (I1-I4); weekly_review (I5) takes "
+    "a week. Prefer an insight tool for "
+    "questions about totals, comparisons, trends, weekly reviews or links between training and "
+    "sleep: it does "
     "the math in one call. Sleep and HRV are dated by the morning the night ended. "
     "Every field name carries its unit. 'not recorded' means Garmin has no value: never "
     "replace it with zero or an estimate. 'not provided by Garmin's Personal API' means Garmin "
@@ -272,5 +274,26 @@ def build_server(source_factory: Callable[[], GarminSource] = GarminSource) -> M
         ] = "week",
     ) -> dict[str, Any]:
         return run(insights.trend, metric, start, end, group_by)
+
+    @server.tool(
+        annotations=READ_ONLY,
+        description=(
+            "I5. Weekly review, the same every time: training, sleep, HRV, resting heart rate, "
+            "stress and Body Battery for the Monday-to-Sunday week containing week_of (default: "
+            "this week so far), against the same days last week and the previous 28 days; best "
+            "and worst nights; and highlights from fixed rules. Use for 'weekly review' or "
+            "'how was my week' questions." + NOTE
+        ),
+    )
+    def weekly_review(
+        week_of: Annotated[
+            str | None,
+            Field(
+                description="Any date in the week to review, YYYY-MM-DD. Leave empty for "
+                "this week so far; use a date from last week for the last full week."
+            ),
+        ] = None,
+    ) -> dict[str, Any]:
+        return run(insights.weekly_review, week_of)
 
     return server

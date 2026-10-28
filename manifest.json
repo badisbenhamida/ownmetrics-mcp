@@ -2,7 +2,7 @@
   "manifest_version": "0.4",
   "name": "ownmetrics-mcp",
   "display_name": "OwnMetrics",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Ask Claude about your own Garmin data, via Garmin's official Personal API. Read-only, runs on your computer. Unofficial; not affiliated with Garmin.",
   "long_description": "OwnMetrics lets Claude answer questions about your own sleep, HRV, stress, Body Battery, heart rate and activities, using Garmin's official Personal API and a key you create in Garmin Connect. It is read-only, talks only to Garmin, stores no health data, and never reports missing data as zero. Results are informational, not medical advice. Unofficial project: not affiliated with, endorsed by or supported by Garmin. \"Garmin\" and \"Garmin Connect\" are trademarks of Garmin Ltd. or its subsidiaries.",
   "author": {
@@ -85,6 +85,10 @@
     {
       "name": "trend",
       "description": "Trend of one metric over up to 366 days, by day, week or month: the series, change per 30 days and whether it is going up, down or flat. Daily grouping adds a 7-day rolling average."
+    },
+    {
+      "name": "weekly_review",
+      "description": "Weekly review, the same every time: training, sleep, HRV, resting heart rate, stress and Body Battery for the Monday-to-Sunday week containing week_of (default: this week so far), against the same days last week and the previous 28 days; best and worst nights; and highlights from fixed rules. Use for 'weekly review' or 'how was my week' questions."
     }
   ],
   "tools_generated": false,

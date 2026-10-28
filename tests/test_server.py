@@ -22,6 +22,7 @@ EXPECTED = {
     "compare_periods": "I2",
     "recovery_correlations": "I3",
     "trend": "I4",
+    "weekly_review": "I5",
 }
 
 

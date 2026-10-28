@@ -257,6 +257,7 @@ def test_every_numeric_field_names_its_unit():
         insights.recovery_correlations(src, "2026-09-01", "2026-10-20"),
         insights.trend(src, "sleep_score", "2026-10-01", "2026-10-20", "day"),
         insights.trend(src, "training_hours", "2026-08-01", "2026-10-20", "month"),
+        insights.weekly_review(src, today=date(2026, 10, 21)),
     ]
     keys = set().union(*(_numeric_keys(o, set()) for o in outputs))
     unlabelled = {k for k in keys if k not in UNITLESS and not k.endswith(UNIT_SUFFIXES)}
