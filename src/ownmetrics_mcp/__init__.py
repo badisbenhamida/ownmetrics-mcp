@@ -4,4 +4,4 @@ Unofficial project. Not affiliated with or endorsed by Garmin. "Garmin" and "Gar
 are trademarks of Garmin Ltd. or its subsidiaries.
 """
 
-__version__ = "0.2.1"
+__version__ = "0.3.0"

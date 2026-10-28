@@ -20,7 +20,7 @@ def _load():
 @req("AC2")
 def test_every_in_scope_requirement_has_a_test(tmp_path):
     out = tmp_path / "TRACEABILITY.md"  # never rewrite the committed matrix from a test
-    assert _load().main(["--milestone", "M5", "--check", "--out", str(out)]) == 0
+    assert _load().main(["--milestone", "M6", "--check", "--out", str(out)]) == 0
     assert "**MISSING**" not in out.read_text()
 
 

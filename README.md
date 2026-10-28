@@ -8,8 +8,8 @@ stress, Body Battery, heart rate, activities and more. It uses Garmin's official
 > "Garmin" and "Garmin Connect" are trademarks of Garmin Ltd. or its subsidiaries.
 > Results are informational, not medical advice.
 
-**Status: v0.2 (preview).** Nine data tools and four insight tools (training summaries,
-period comparisons, trends, training vs sleep). FIT-file analysis is next.
+**Status: v0.3 (preview).** Nine data tools and five insight tools (training summaries,
+period comparisons, trends, training vs sleep, weekly review). FIT-file analysis is next.
 
 ## What you can ask
 
@@ -22,6 +22,7 @@ period comparisons, trends, training vs sleep). FIT-file analysis is next.
 - "Which month did I sleep best this year, and how much did I train that month?"
 - "Compare my sleep and training this October with last October."
 - "Do my evening tennis sessions go with worse sleep?"
+- "Give me my weekly review."
 - "Is my Garmin connection working?"
 
 ## Easiest: one-click install for Claude Desktop
@@ -126,6 +127,7 @@ Then ask: *"Check my Garmin connection, then summarize my sleep and HRV for the 
 | `compare_periods` | Two periods side by side: sleep, HRV, resting heart rate, stress, Body Battery, steps, training, with change and % change |
 | `recovery_correlations` | Whether training goes with better or worse sleep and HRV the night after, with sample size and strength. Correlation, not cause. |
 | `trend` | One metric by day, week or month, with direction (up, down or flat) and change per 30 days |
+| `weekly_review` | The same review every time: this week (so far) against the same days last week and your previous 28 days, best and worst nights, and highlights from fixed rules |
 
 Sleep and HRV are dated by the morning the night ended (`woke_up_on`), as Garmin does.
 Pace is shown for running, walking and hiking; speed for other sports; distance says

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0 — unreleased (Milestone 6)
+
+- New insight tool `weekly_review` (I5): the same review every time. This week so far
+  against the same days last week and the previous 28 days: training by sport, sleep, HRV,
+  resting heart rate, stress and Body Battery; best and worst nights; highlights from fixed
+  rules (HRV ±10%, sleep score ±5 points, resting heart rate ±3 bpm, training ±30%, 2 or
+  more nights without data).
+- FIT-file analysis is now I6, planned for a later release.
+
 ## 0.2.1 — unreleased (Milestone 5)
 
 - One-click install for Claude Desktop: each release now includes
