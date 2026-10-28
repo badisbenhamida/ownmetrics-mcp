@@ -142,3 +142,15 @@ def test_week_of_is_validated():
         insights.weekly_review(src, week_of="2026-04-01", today=TODAY)
     with pytest.raises(InvalidInputError, match="2026-10-25"):
         insights.weekly_review(src, week_of="last week", today=TODAY)
+
+
+@req("I5")
+def test_description_steers_apps_to_one_default_call():
+    import asyncio
+
+    from ownmetrics_mcp.server import build_server
+
+    tools = {t.name: t for t in asyncio.run(build_server(lambda: make_source()[0]).list_tools())}
+    text = tools["weekly_review"].description or ""
+    assert "call it once with no week_of" in text
+    assert "pass week_of only when the user names a week" in text

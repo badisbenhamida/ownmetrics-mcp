@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.1 — unreleased
+
+- `weekly_review` tells apps to call it once with no `week_of` for a general weekly review,
+  and to pass `week_of` only when you name a week, so different apps give the same review.
+
 ## 0.3.0 — unreleased (Milestone 6)
 
 - New insight tool `weekly_review` (I5): the same review every time. This week so far
